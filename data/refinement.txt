@@ -13,7 +13,7 @@ Contexto do produto:
 Decisões tomadas (importante):
 1. Protocolo: OIDC Authorization Code Flow.
 2. Frontend:
-   - Botão “Entrar com Microsoft”.
+   - Botão "Entrar com Microsoft".
    - Ao tentar acessar rota protegida sem sessão, redirecionar para login.
    - Após login, voltar para a rota original (returnUrl).
 3. Backend:
@@ -24,15 +24,15 @@ Decisões tomadas (importante):
    - Preferência por cookie HttpOnly e Secure (quando em HTTPS).
    - Não usar localStorage para tokens.
    - TTL inicial: 8 horas (ajustável).
-   - Se token expirar: retornar 401 e UI redireciona para login exibindo “Sessão expirada”.
+   - Se token expirar: retornar 401 e UI redireciona para login exibindo "Sessão expirada".
 5. Segurança:
    - Rate limit para endpoints /auth/*: 20 req/min por IP (valor inicial; pode ajustar).
    - Não logar tokens, secrets, authorization code ou payload bruto.
    - Mensagens de erro neutras (não revelar detalhes internos do Azure AD).
 6. Observabilidade:
    - Correlation ID por request (ex.: x-correlation-id).
-   - Logs estruturados: evento “auth_success”, “auth_fail”, “auth_rate_limited”.
-   - Sem PII. Pode registrar “role/tenant/flow” se não identificar pessoa.
+   - Logs estruturados: evento "auth_success", "auth_fail", "auth_rate_limited".
+   - Sem PII. Pode registrar "role/tenant/flow" se não identificar pessoa.
 7. Ambientes:
    - Dev: localhost (com redirect URI específico).
    - Staging: domínio de homologação.
@@ -40,7 +40,7 @@ Decisões tomadas (importante):
    - Cada ambiente precisa de redirect URI configurado no App Registration.
 
 Requisitos funcionais (comportamento esperado):
-- Usuário clica “Entrar com Microsoft” → abre login Microsoft → retorna autenticado.
+- Usuário clica "Entrar com Microsoft" → abre login Microsoft → retorna autenticado.
 - Usuário tenta acessar /dashboard sem login → é redirecionado → após login volta para /dashboard.
 - Logout encerra sessão e remove cookie; qualquer rota protegida volta a exigir login.
 - Ao expirar sessão, a UI detecta 401, mostra aviso e redireciona para login.

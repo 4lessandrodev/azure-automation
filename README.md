@@ -1,9 +1,10 @@
-# Azure DevOps Backlog Automation — PBIs + Refinement Agent + Tasks Seeder
+# Azure DevOps Automation — PBIs + Refinement Agent + Tasks Seeder
 
 Este repositório contém duas CLIs em Python que automatizam o backlog no Azure DevOps:
 
 1) **`azdo_cli.py`**: cria **PBIs** e **Tasks** diretamente no Azure DevOps Boards a partir de JSON.  
 2) **`refine_cli.py`**: transforma um **refinamento técnico (texto/transcrição/protótipo textual)** em um **JSON de tasks** (pronto para o `azdo_cli.py`), usando OpenAI Responses API + Structured Outputs.
+
 
 O objetivo é simples: **apenas o refinamento é manual**. Todo o resto — gerar tasks, validar e criar no board — é automatizado.
 
@@ -13,7 +14,7 @@ O objetivo é simples: **apenas o refinamento é manual**. Todo o resto — gera
 
 - **Produtividade**: criar PBIs e Tasks em lote em segundos.
 - **Padronização**: títulos, descrições, DoD, tags, iteração e área consistentes.
-- **Reprodutibilidade**: backlog como “infra” — versionado em arquivos JSON no Git.
+- **Reprodutibilidade**: backlog como "infra" — versionado em arquivos JSON no Git.
 - **Menos erro humano**: evita esquecer campos e links pai-filho e reduz retrabalho.
 
 ---
@@ -50,7 +51,7 @@ O objetivo é simples: **apenas o refinamento é manual**. Todo o resto — gera
 
 Você pode usar `.env` para não depender de `export` no shell.
 
-Crie um arquivo `.env` (não comitar):
+Crie um arquivo `.env`:
 
 ```env
 OPENAI_API_KEY=coloque_sua_chave_aqui
@@ -59,7 +60,6 @@ AZDO_PAT=coloque_seu_pat_aqui
 
 > Os scripts **carregam `.env`** antes de processar argumentos.
 
-**Recomendação:** adicione `.env` ao `.gitignore`.
 
 ---
 
@@ -100,7 +100,7 @@ make run-tasks ORG=4le PROJECT=Lab FILE=./task.json
 **Gerar tasks a partir do refinamento:**
 
 ```bash
-make run-refine INPUT=./refinement.txt PARENT_ID=4 ITERATION='Lab\\Sprint 1' AREA=Lab OUT=./task.json
+make run-refine INPUT=./refinement.txt PARENT_ID=4 ITERATION='Lab\\Sprint 1' AREA=Lab OUT=./data/task.json
 ```
 
 **Validar JSON de tasks:**
@@ -120,7 +120,7 @@ make run-full ORG=4le PROJECT=Lab INPUT=./refinement.txt PARENT_ID=4 ITERATION='
 Você pode customizar saída e modelo:
 
 ```bash
-make run-full ORG=4le PROJECT=Lab INPUT=./refinement.txt PARENT_ID=4 ITERATION='Lab\\Sprint 1' AREA=Lab OUT=./task.generated.json MODEL=gpt-4.1-nano
+make run-full ORG=4le PROJECT=Lab INPUT=./data/refinement.txt PARENT_ID=4 ITERATION='Lab\\Sprint 1' AREA=Lab OUT=./data/task.generated.json MODEL=gpt-4.1-nano
 ```
 
 > **Model default do agente:** `gpt-4.1-nano` (bom custo/benefício para testes).
@@ -142,13 +142,13 @@ python3 azdo_cli.py help tasks
 Criar PBIs:
 
 ```bash
-python3 azdo_cli.py --org 4le --project Lab pbis --file ./pbi.json
+python3 azdo_cli.py --org 4le --project Lab pbis --file ./data/pbi.json
 ```
 
 Criar Tasks:
 
 ```bash
-python3 azdo_cli.py --org 4le --project Lab tasks --file ./task.json
+python3 azdo_cli.py --org 4le --project Lab tasks --file ./data/task.json
 ```
 
 ### refine_cli.py
@@ -169,13 +169,13 @@ python3 refine_cli.py generate \
   --parent-id 4 \
   --iteration "Lab\\Sprint 1" \
   --area-path "Lab" \
-  --out ./task.generated.json
+  --out ./data/task.generated.json
 ```
 
 Validar:
 
 ```bash
-python3 refine_cli.py validate --file ./task.generated.json --parent-id 4
+python3 refine_cli.py validate --file ./data/task.generated.json --parent-id 4
 ```
 
 ---
@@ -414,21 +414,21 @@ sequenceDiagram
   participant AUD as created_tasks_output.json
 
   TL->>TXT: Escreve/refina o texto do refinamento (manual)
-  TL->>RF: Executa make run-full / refine_cli.py generate\n(parent_id, iteration, area)
+  TL->>RF: Executa make run-full / refine_cli.py generate (parent_id, iteration, area)
   RF->>SAN: Carrega .env (OPENAI_API_KEY) + sanitiza input
   SAN-->>RF: Texto sanitizado + sanitization.notes
-  RF->>OAI: Envia prompt + JSON Schema (strict)\n(gera apenas tasks variáveis)
+  RF->>OAI: Envia prompt + JSON Schema (strict) (gera apenas tasks variáveis)
   OAI-->>RF: JSON com tasks variáveis (conforme schema)
-  RF->>STD: Injeta tasks padrão (QA, Dev local, GMUD, deploys)\nsem consumir tokens
-  STD-->>RF: Payload completo (variáveis + padrão)\n(dedup por tag std:*)
+  RF->>STD: Injeta tasks padrão (QA, Dev local, GMUD, deploys) sem consumir tokens
+  STD-->>RF: Payload completo (variáveis + padrão) (dedup por tag std:*)
   RF->>OUT: Salva task.generated.json
 
   TL->>VAL: Executa refine_cli.py validate --file task.generated.json
   VAL->>OUT: Lê task.generated.json
   VAL-->>TL: OK (ou erro + motivo)
 
-  TL->>AZ: Executa azdo_cli.py tasks --file task.generated.json\n(org, project)
-  AZ->>ADO: Para cada task: POST Work Item (Task)\n+ relation Hierarchy-Reverse(parent_id)
+  TL->>AZ: Executa azdo_cli.py tasks --file task.generated.json (org, project)
+  AZ->>ADO: Para cada task: POST Work Item (Task) + relation Hierarchy-Reverse(parent_id)
   ADO-->>AZ: Retorna IDs das tasks criadas
   AZ->>AUD: Salva created_tasks_output.json
   AZ-->>TL: Confirma tasks criadas e linkadas ao PBI

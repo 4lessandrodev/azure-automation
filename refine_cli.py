@@ -13,8 +13,9 @@ Fluxo:
 3) Executa: refine_cli.py generate ... -> task.json
 4) Executa: azdo_cli.py tasks --file task.json -> cria no board.
 
-A API usada é a Responses API. :contentReference[oaicite:2]{index=2}
-Structured Outputs é aplicado via text.format com json_schema + strict. :contentReference[oaicite:3]{index=3}
+Observações:
+- Sanitização básica (heurística) para evitar vazamento de PII/segredos.
+- A chamada ao modelo usa Structured Outputs (json_schema + strict).
 """
 
 import argparse
@@ -23,8 +24,10 @@ import json
 import os
 import re
 import sys
+import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # Dependências externas:
 missing = []
@@ -45,14 +48,36 @@ if missing:
     )
     sys.exit(1)
 
-# Carregar variáveis de ambiente do .env
+__version__ = "0.1.0"
+
+
+# -----------------------------
+# Configuração e .env
+# -----------------------------
 def load_dotenv(path: str = ".env", override: bool = False) -> None:
-    """
-    Carrega variáveis do arquivo .env para o os.environ.
-    - Ignora linhas vazias e comentários (#)
-    - Aceita 'export KEY=VALUE'
-    - Remove aspas simples/duplas ao redor do valor
-    - Por padrão, NÃO sobrescreve env já existente (override=False)
+    """Carrega variáveis de ambiente a partir de um arquivo `.env`.
+
+    Objetivo:
+        Popular `os.environ` com variáveis definidas em um `.env` para facilitar
+        execução local, sem depender de ferramentas externas.
+
+    Args:
+        path: Caminho do arquivo `.env`.
+        override: Se True, sobrescreve variáveis já presentes em `os.environ`.
+                  Se False, preserva variáveis já definidas.
+
+    Returns:
+        None.
+
+    Side Effects:
+        - Lê arquivo do disco.
+        - Atualiza `os.environ`.
+
+    Notes:
+        - Ignora linhas vazias e comentários iniciados por `#`.
+        - Aceita linhas no formato `export KEY=VALUE`.
+        - Remove aspas simples/duplas externas do valor.
+        - Se o arquivo não existir, retorna silenciosamente.
     """
     if not os.path.isfile(path):
         return
@@ -72,7 +97,6 @@ def load_dotenv(path: str = ".env", override: bool = False) -> None:
             key = key.strip()
             value = value.strip()
 
-            # remove aspas externas
             if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
                 value = value[1:-1]
 
@@ -81,19 +105,117 @@ def load_dotenv(path: str = ".env", override: bool = False) -> None:
 
             os.environ[key] = value
 
-load_dotenv()  # carrega .env na inicialização (se existir)
+
+load_dotenv()  # carrega .env na inicialização
+
 
 # -----------------------------
 # Util
 # -----------------------------
 def die(msg: str, code: int = 1) -> None:
-    """Encerra com mensagem clara (falha controlada)."""
+    """Encerra a execução com erro e mensagem clara.
+
+    Objetivo:
+        Padronizar falhas "controladas" sem stacktrace para cenários previsíveis
+        (arquivo ausente, JSON inválido, variáveis não informadas, etc).
+
+    Args:
+        msg: Mensagem de erro a exibir.
+        code: Código de saída do processo (default: 1).
+
+    Returns:
+        None (não retorna: finaliza o processo).
+
+    Side Effects:
+        - Escreve mensagem em `stderr`.
+        - Encerra o processo com `sys.exit(code)`.
+    """
     print(f"Erro: {msg}", file=sys.stderr)
     sys.exit(code)
 
 
+# -----------------------------
+# Loading visual (terminal)
+# -----------------------------
+_PROGRESS_ENABLED = os.getenv("REFINE_PROGRESS", "1") != "0"
+
+
+@contextmanager
+def loading(label: str, enabled: bool = True, interval: float = 0.25):
+    """Mostra um indicador simples de execução no terminal.
+
+    Objetivo:
+        Dar feedback visual enquanto etapas estão em execução. Escreve em `stderr`
+        para não poluir `stdout` (que fica para logs/saídas "reais").
+
+    Args:
+        label: Texto base exibido (ex.: "call_openai_structured(gpt-4.1-nano)").
+        enabled: Liga/desliga o loading por chamada.
+        interval: Intervalo em segundos entre atualizações (default: 0.25s).
+
+    Yields:
+        Um contexto (`with loading(...):`) durante o qual o loading fica ativo.
+
+    Side Effects:
+        - Escreve em `stderr` com carriage return (`\\r`).
+        - Cria e gerencia uma thread daemon temporária.
+
+    Conditions:
+        - Só renderiza se `sys.stderr.isatty()` for True (terminal interativo).
+        - Pode ser desativado via env `REFINE_PROGRESS=0`.
+    """
+    if not (enabled and _PROGRESS_ENABLED and sys.stderr.isatty()):
+        yield
+        return
+
+    stop = threading.Event()
+    state = {"last_len": 0, "i": 0}
+    dots = ["", ".", "..", "..."]
+
+    def run() -> None:
+        while not stop.is_set():
+            msg = f"{label}{dots[state['i'] % 4]}"
+            state["i"] += 1
+
+            pad = max(0, state["last_len"] - len(msg))
+            state["last_len"] = len(msg)
+
+            sys.stderr.write("\r" + msg + (" " * pad))
+            sys.stderr.flush()
+            stop.wait(interval)
+
+        msg = f"{label}"
+        pad = max(0, state["last_len"] - len(msg))
+        sys.stderr.write("\r" + msg + (" " * pad) + "\n")
+        sys.stderr.flush()
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        t.join(timeout=1.0)
+
+
 def read_text(path: str) -> str:
-    """Lê um arquivo texto (UTF-8) do disco."""
+    """Lê um arquivo texto (UTF-8) do disco.
+
+    Objetivo:
+        Centralizar leitura do input de refinamento.
+
+    Args:
+        path: Caminho do arquivo de texto.
+
+    Returns:
+        Conteúdo do arquivo como string.
+
+    Exit:
+        Finaliza com `die()` se o arquivo não existir.
+
+    Side Effects:
+        - Lê arquivo do disco.
+    """
     try:
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
@@ -102,68 +224,95 @@ def read_text(path: str) -> str:
 
 
 def sha256_text(text: str) -> str:
-    """Gera hash SHA256 do texto (útil para auditoria sem armazenar input bruto)."""
+    """Gera hash SHA-256 de um texto.
+
+    Objetivo:
+        Permitir auditoria/referência do input sem persistir conteúdo bruto.
+
+    Args:
+        text: Texto de entrada.
+
+    Returns:
+        String no formato `sha256:<hex>`.
+    """
     h = hashlib.sha256()
     h.update(text.encode("utf-8"))
     return "sha256:" + h.hexdigest()
 
 
 def utc_now_iso() -> str:
-    """Timestamp ISO-8601 em UTC."""
+    """Gera timestamp ISO-8601 em UTC.
+
+    Objetivo:
+        Padronizar timestamps para metadados do payload.
+
+    Returns:
+        String ISO-8601 em UTC (ex.: `2026-03-01T12:34:56.789+00:00`).
+    """
     return datetime.now(timezone.utc).isoformat()
 
 
 def sanitize_input(text: str) -> Tuple[str, List[str]]:
-    """
-    Sanitiza PII/segredos básicos antes de enviar ao modelo.
-    (Simples e conceitual: regex + substituição.)
+    """Sanitiza PII/segredos básicos antes de enviar ao modelo (heurístico).
 
-    Retorna:
-    - texto sanitizado
-    - notas do que foi mascarado
+    Objetivo:
+        Reduzir risco de vazamento de informações sensíveis no input enviado ao modelo.
+
+    Args:
+        text: Texto bruto (refinamento/transcrição).
+
+    Returns:
+        Tuple contendo:
+            - texto sanitizado (str)
+            - notas do que foi mascarado (list[str])
+
+    Notes:
+        - É heurístico (regex simples). Não garante remoção total de PII/segredos.
+        - Mascara e-mails, CPF, telefones BR e padrões de "token/secret/password".
     """
     notes: List[str] = []
     original = text
 
-    # E-mails
     email_re = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
     if email_re.search(text):
         text = email_re.sub("[EMAIL_REDACTED]", text)
         notes.append("E-mails mascarados.")
 
-    # CPF (com ou sem pontuação)
     cpf_re = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b")
     if cpf_re.search(text):
         text = cpf_re.sub("[CPF_REDACTED]", text)
         notes.append("CPFs mascarados.")
 
-    # Telefones BR (heurístico)
     phone_re = re.compile(r"(\+?55\s?)?(\(?\d{2}\)?\s?)?\d{4,5}[-\s]?\d{4}")
     if phone_re.search(text):
         text = phone_re.sub("[PHONE_REDACTED]", text)
         notes.append("Telefones mascarados.")
 
-    # Tokens/keys/segredos (heurístico)
     secret_re = re.compile(r"(?i)\b(api[_-]?key|token|secret|senha|password)\b\s*[:=]\s*\S+")
     if secret_re.search(text):
         text = secret_re.sub("[SECRET_REDACTED]", text)
         notes.append("Tokens/segredos mascarados (heurístico).")
 
-    # Caso não tenha mudado nada
     if text == original:
         notes.append("Nenhuma sanitização aplicada (nenhum padrão detectado).")
 
     return text, notes
 
+
 # -----------------------------
 # Schema (Structured Outputs)
 # -----------------------------
 def tasks_json_schema() -> Dict[str, Any]:
-    """
-    JSON Schema para Structured Outputs em strict:true.
+    """Retorna o JSON Schema do payload (Structured Outputs, strict=true).
 
-    Em strict:true, todos os campos devem estar em "required".
-    Para campos que você quer "opcionais", use união com null: type ["string","null"].
+    Objetivo:
+        Definir o contrato do JSON gerado pelo modelo:
+        - `meta`, `tasks`, `assumptions`, `open_questions`, `sanitization`
+        - Com `strict=true`, todos os campos em `required`.
+        - Campos "opcionais" são modelados como união com `null`.
+
+    Returns:
+        Dict com o JSON Schema no formato esperado pelo Structured Outputs.
     """
     task_item_properties = {
         "parent_id": {"type": "integer"},
@@ -172,7 +321,6 @@ def tasks_json_schema() -> Dict[str, Any]:
         "description": {"type": "string"},
         "priority": {"type": "integer", "minimum": 1, "maximum": 3},
         "remaining_work": {"type": "integer", "minimum": 1, "maximum": 80},
-        # Campos "opcionais" emulados com null (mas continuam required)
         "assigned_to": {"type": ["string", "null"]},
         "iteration": {"type": "string"},
         "activity": {"type": ["string", "null"]},
@@ -207,15 +355,12 @@ def tasks_json_schema() -> Dict[str, Any]:
                 "required": list(task_item_properties.keys()),
             },
         },
-        # Também precisam existir no output (required), mas podem ser arrays vazios
         "assumptions": {"type": "array", "items": {"type": "string"}},
         "open_questions": {"type": "array", "items": {"type": "string"}},
         "sanitization": {
             "type": "object",
             "additionalProperties": False,
-            "properties": {
-                "notes": {"type": "array", "items": {"type": "string"}}
-            },
+            "properties": {"notes": {"type": "array", "items": {"type": "string"}}},
             "required": ["notes"],
         },
     }
@@ -239,9 +384,22 @@ def build_messages(
     min_tasks: int,
     max_tasks: int,
 ) -> List[Dict[str, str]]:
-    """
-    Monta mensagens do request.
-    Responses API aceita input com lista de mensagens. :contentReference[oaicite:5]{index=5}
+    """Monta mensagens (system/user) para a chamada ao modelo.
+
+    Objetivo:
+        Produzir um prompt fechado (anti-alucinação) e com contrato claro,
+        garantindo que o output respeite schema e qualidade mínima por task.
+
+    Args:
+        sanitized_text: Input sanitizado do refinamento.
+        parent_id: ID do PBI pai (aplicado em todas as tasks).
+        iteration: IterationPath (aplicado em todas as tasks).
+        area_path: AreaPath (aplicado em todas as tasks).
+        min_tasks: Mínimo desejado de tasks.
+        max_tasks: Máximo desejado de tasks.
+
+    Returns:
+        Lista de mensagens no formato aceito pela Responses API.
     """
     system = (
         "Você é um agente de refinamento técnico especialista em programação, arquitetura de software e engenharia de plataforma.\n"
@@ -291,6 +449,8 @@ def build_messages(
         "- Não criar tasks duplicadas.\n"
         "- Evite tarefas vagas do tipo 'refatorar tudo'. Quebre em entregas pequenas.\n"
         "- Se um ponto impedir a execução, registre em open_questions.\n"
+        "- Mantenha as tasks pequenas e executáveis dentro de 1 dia.\n"
+        "- Se necessário quebre uma task em partes menores.\n"
     )
 
     user = (
@@ -302,10 +462,7 @@ def build_messages(
         "```"
     )
 
-    return [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user},
-    ]
+    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
 def call_openai_structured(
@@ -315,16 +472,36 @@ def call_openai_structured(
     schema: Dict[str, Any],
     store: bool,
 ) -> Dict[str, Any]:
-    """
-    Chama OpenAI Responses API com Structured Outputs via text.format json_schema.
-    Em Responses, Structured Outputs usa text.format (não response_format). :contentReference[oaicite:6]{index=6}
+    """Chama a OpenAI Responses API com Structured Outputs (json_schema, strict=true).
+
+    Objetivo:
+        Obter um JSON válido (parseável) e aderente ao schema definido pela aplicação.
+
+    Args:
+        api_key: Chave da OpenAI.
+        model: Nome do modelo.
+        messages: Lista de mensagens (system/user).
+        schema: JSON Schema do output.
+        store: Se True, permite armazenamento do output (config de privacidade).
+
+    Returns:
+        Dict (payload) parseado do JSON retornado pelo modelo.
+
+    Exit:
+        Finaliza com `die()` se:
+        - não houver `output_text` utilizável,
+        - houver recusa,
+        - o retorno não for JSON parseável.
+
+    Side Effects:
+        - Faz chamada de rede à API.
     """
     client = OpenAI(api_key=api_key)
 
     response = client.responses.create(
         model=model,
         input=messages,
-        store=store,  # para privacidade, podemos deixar False; docs citam store=false como opção. :contentReference[oaicite:7]{index=7}
+        store=store,
         text={
             "format": {
                 "type": "json_schema",
@@ -335,10 +512,8 @@ def call_openai_structured(
         },
     )
 
-    # Preferimos pegar output_text e fazer json.loads
     out_text = getattr(response, "output_text", None)
     if not out_text:
-        # fallback: tenta detectar recusa
         try:
             for item in response.output:
                 for c in item.content:
@@ -358,9 +533,24 @@ def call_openai_structured(
 # Validation
 # -----------------------------
 def validate_tasks_payload(payload: Dict[str, Any], expected_parent_id: Optional[int] = None) -> None:
-    """
-    Validação local (leve) para evitar lixo indo para o azdo_cli.
-    Structured Outputs já garante schema, mas isso reforça invariantes do seu uso.
+    """Validação local (leve) do payload gerado.
+
+    Objetivo:
+        Reforçar invariantes do seu fluxo, mesmo com Structured Outputs:
+        - existe tasks[]
+        - tasks tem campos mínimos
+        - description tem tamanho mínimo
+        - parent_id uniforme quando requerido
+
+    Args:
+        payload: Dict com o JSON completo.
+        expected_parent_id: Se informado, valida que todas tasks possuem este parent_id.
+
+    Returns:
+        None.
+
+    Exit:
+        Finaliza com `die()` se alguma validação falhar.
     """
     if not isinstance(payload, dict):
         die("JSON gerado não é um objeto.")
@@ -387,13 +577,24 @@ def validate_tasks_payload(payload: Dict[str, Any], expected_parent_id: Optional
 
 
 def build_standard_tasks(parent_id: int, iteration: str, area_path: str) -> List[Dict[str, Any]]:
-    """
-    Retorna tasks padrão (sem chamar modelo / sem tokens).
+    """Gera tasks padrão de processo (sem gastar tokens).
 
-    IMPORTANTE:
-    - O schema strict exige que TODAS as chaves existam em cada task.
-    - assigned_to e activity podem ser null.
-    - tags sempre existe (array).
+    Objetivo:
+        Garantir consistência mínima do processo (validação local, QA, GMUD, deploy)
+        sem depender do modelo para lembrar dessas tasks.
+
+    Args:
+        parent_id: ID do PBI pai.
+        iteration: IterationPath.
+        area_path: AreaPath.
+
+    Returns:
+        Lista de tasks no mesmo formato do schema (com todas as chaves obrigatórias).
+
+    Notes:
+        - `assigned_to` e `activity` podem ser `None`.
+        - `tags` sempre existe (array).
+        - Inclui tag `std:<id>` para deduplicação posterior.
     """
     base = {
         "parent_id": parent_id,
@@ -409,14 +610,22 @@ def build_standard_tasks(parent_id: int, iteration: str, area_path: str) -> List
         "description": "",
     }
 
-    def mk(std_tag: str, title: str, description: str, priority: int, hours: int, activity: Optional[str], tags: List[str]) -> Dict[str, Any]:
+    def mk(
+        std_tag: str,
+        title: str,
+        description: str,
+        priority: int,
+        hours: int,
+        activity: Optional[str],
+        tags: List[str],
+    ) -> Dict[str, Any]:
+        """Cria uma task padrão com âncora `std:<id>`."""
         t = dict(base)
         t["title"] = title
         t["description"] = description
         t["priority"] = priority
         t["remaining_work"] = hours
         t["activity"] = activity
-        # tag "std:*" é a âncora para deduplicação
         t["tags"] = [f"std:{std_tag}"] + tags
         return t
 
@@ -617,11 +826,23 @@ def build_standard_tasks(parent_id: int, iteration: str, area_path: str) -> List
 
 
 def ensure_standard_tasks(payload: Dict[str, Any], parent_id: int, iteration: str, area_path: str) -> None:
-    """
-    Injeta tasks padrão no payload SEM gastar tokens.
+    """Injeta tasks padrão no payload sem gastar tokens.
 
-    Deduplicação:
-    - Se já existir uma task com tag "std:<id>", não adiciona de novo.
+    Objetivo:
+        Garantir que o payload final sempre inclua tasks de processo, evitando
+        que o modelo “esqueça”.
+
+    Args:
+        payload: Payload final (dict) que contém `tasks`.
+        parent_id: PBI pai das tasks padrão.
+        iteration: IterationPath das tasks padrão.
+        area_path: AreaPath das tasks padrão.
+
+    Returns:
+        None.
+
+    Notes:
+        Deduplica por tag âncora `std:<id>`. Se já existir, não adiciona.
     """
     tasks = payload.setdefault("tasks", [])
     existing_std = set()
@@ -632,7 +853,7 @@ def ensure_standard_tasks(payload: Dict[str, Any], parent_id: int, iteration: st
                 existing_std.add(tag)
 
     for std_task in build_standard_tasks(parent_id, iteration, area_path):
-        std_tag = std_task["tags"][0]  # sempre "std:<id>"
+        std_tag = std_task["tags"][0]
         if std_tag not in existing_std:
             tasks.append(std_task)
 
@@ -641,38 +862,71 @@ def ensure_standard_tasks(payload: Dict[str, Any], parent_id: int, iteration: st
 # Commands
 # -----------------------------
 def cmd_generate(args: argparse.Namespace) -> int:
-    """Gera task.json a partir do input.txt chamando OpenAI."""
+    """Comando `generate`: gera task.json a partir de um input.txt.
+
+    Objetivo:
+        Orquestrar:
+        - leitura do input
+        - sanitização (PII/segredos)
+        - montagem do prompt
+        - chamada OpenAI (Structured Outputs)
+        - injeção de tasks padrão
+        - validação local
+        - escrita do JSON final
+
+    Args:
+        args: Namespace do argparse (parâmetros do CLI).
+
+    Returns:
+        Código de saída (0 em sucesso).
+
+    Exit:
+        Finaliza com `die()` se faltar `OPENAI_API_KEY` ou se validações falharem.
+
+    Side Effects:
+        - Lê arquivo do disco.
+        - Faz chamada de rede à OpenAI.
+        - Escreve arquivo JSON no disco.
+        - Escreve mensagens em stdout/stderr.
+    """
     api_key = args.api_key or os.getenv("OPENAI_API_KEY")
     if not api_key:
         die("Falta OPENAI_API_KEY no ambiente (ou use --api-key).")
 
-    raw = read_text(args.input)
-    sanitized, notes = sanitize_input(raw)
-    input_hash = sha256_text(sanitized)
+    with loading("read_text"):
+        raw = read_text(args.input)
 
-    messages = build_messages(
-        sanitized_text=sanitized,
-        parent_id=args.parent_id,
-        iteration=args.iteration,
-        area_path=args.area_path,
-        min_tasks=args.min_tasks,
-        max_tasks=args.max_tasks,
-    )
+    with loading("sanitize_input"):
+        sanitized, notes = sanitize_input(raw)
 
-    schema = tasks_json_schema()
+    with loading("sha256_text"):
+        input_hash = sha256_text(sanitized)
 
-    payload = call_openai_structured(
-        api_key=api_key,
-        model=args.model,
-        messages=messages,
-        schema=schema,
-        store=args.store,
-    )
+    with loading("build_messages"):
+        messages = build_messages(
+            sanitized_text=sanitized,
+            parent_id=args.parent_id,
+            iteration=args.iteration,
+            area_path=args.area_path,
+            min_tasks=args.min_tasks,
+            max_tasks=args.max_tasks,
+        )
 
-    # Preenche meta/sanitization se o modelo não tiver preenchido (fallback)
+    with loading("tasks_json_schema"):
+        schema = tasks_json_schema()
+
+    with loading(f"call_openai_structured({args.model})"):
+        payload = call_openai_structured(
+            api_key=api_key,
+            model=args.model,
+            messages=messages,
+            schema=schema,
+            store=args.store,
+        )
+
     payload.setdefault("meta", {})
     payload["meta"].setdefault("agent", "refine_cli")
-    payload["meta"].setdefault("agent_version", "0.1.0")
+    payload["meta"].setdefault("agent_version", __version__)
     payload["meta"].setdefault("created_at", utc_now_iso())
     payload["meta"].setdefault("input_hash", input_hash)
     payload["meta"].setdefault("parent_id", args.parent_id)
@@ -682,15 +936,15 @@ def cmd_generate(args: argparse.Namespace) -> int:
     payload.setdefault("sanitization", {"notes": notes})
     payload["sanitization"].setdefault("notes", notes)
 
-    # Injeta tasks padrão (processo) sem gastar tokens, garantindo consistência e evitando esquecimentos.
-    ensure_standard_tasks(payload, args.parent_id, args.iteration, args.area_path)
+    with loading("ensure_standard_tasks"):
+        ensure_standard_tasks(payload, args.parent_id, args.iteration, args.area_path)
 
-    # Validação leve (e garante parent_id uniforme)
-    validate_tasks_payload(payload, expected_parent_id=args.parent_id)
+    with loading("validate_tasks_payload"):
+        validate_tasks_payload(payload, expected_parent_id=args.parent_id)
 
-    # Escreve arquivo tasks compatível com azdo_cli (ele ignora chaves extras e lê tasks[])
-    with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+    with loading("write_json"):
+        with open(args.out, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
 
     print(f"✅ JSON gerado: {args.out}")
     if payload.get("open_questions"):
@@ -699,26 +953,84 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    """Valida um task.json (sem chamar API)."""
-    try:
-        with open(args.file, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-    except FileNotFoundError:
-        die(f"Arquivo não encontrado: {args.file}")
-    except json.JSONDecodeError as e:
-        die(f"JSON inválido: {e}")
+    """Comando `validate`: valida um task.json localmente (sem chamar OpenAI).
 
-    validate_tasks_payload(payload, expected_parent_id=args.parent_id)
+    Objetivo:
+        Verificar rapidamente se o arquivo gerado está coerente para consumo no azdo_cli.py.
+
+    Args:
+        args: Namespace do argparse.
+
+    Returns:
+        Código de saída (0 em sucesso).
+
+    Exit:
+        Finaliza com `die()` se o arquivo não existir, JSON for inválido, ou validação falhar.
+
+    Side Effects:
+        - Lê arquivo do disco.
+        - Escreve mensagens em stdout/stderr.
+    """
+    with loading("read_json"):
+        try:
+            with open(args.file, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        except FileNotFoundError:
+            die(f"Arquivo não encontrado: {args.file}")
+        except json.JSONDecodeError as e:
+            die(f"JSON inválido: {e}")
+
+    with loading("validate_tasks_payload"):
+        validate_tasks_payload(payload, expected_parent_id=args.parent_id)
+
     print("✅ JSON válido para uso no azdo_cli.py")
     return 0
+
+
+class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
+    """Formatter do argparse para help mais legível (defaults + descrição crua)."""
+    pass
 
 
 # -----------------------------
 # CLI
 # -----------------------------
 def build_parser() -> argparse.ArgumentParser:
-    """Configura argparse com subcomandos generate/validate/help."""
-    p = argparse.ArgumentParser(prog="refine_cli", add_help=True)
+    """Monta o parser (argparse) da CLI.
+
+    Objetivo:
+        Definir subcomandos (`generate`, `validate`, `help`) e flags associadas,
+        além de `--version`.
+
+    Returns:
+        ArgumentParser configurado.
+    """
+    epilog = (
+        "ENV:\n"
+        "  OPENAI_API_KEY  - obrigatório para o comando generate (pode vir do .env)\n\n"
+        "Ajuda por tópico:\n"
+        "  refine_cli help generate\n"
+        "  refine_cli help validate\n\n"
+        "Exemplos:\n"
+        "  python3 refine_cli.py help\n"
+        "  python3 refine_cli.py help generate\n"
+        "  python3 refine_cli.py generate --input ./refinement.txt --parent-id 123 --iteration \"Lab\\\\Sprint 1\" --area-path \"Lab\"\n"
+        "  python3 refine_cli.py validate --file ./task.json --parent-id 123\n"
+    )
+
+    p = argparse.ArgumentParser(
+        prog="refine_cli",
+        description=(
+            "Transforma um refinamento técnico (TXT) em JSON de Tasks compatível com azdo_cli.py.\n"
+            "Foco: tarefas executáveis, pequenas, com DoD, testes e riscos; sem PII/segredos."
+        ),
+        epilog=epilog,
+        add_help=True,
+        formatter_class=_HelpFormatter,
+    )
+
+    p.add_argument("--version", action="version", version="%(prog)s " + __version__)
+
     sub = p.add_subparsers(dest="command")
 
     g = sub.add_parser("generate", help="Gera task.json a partir de input.txt (chama OpenAI)")
@@ -740,21 +1052,43 @@ def build_parser() -> argparse.ArgumentParser:
     v.set_defaults(func=cmd_validate)
 
     h = sub.add_parser("help", help="Mostra ajuda geral ou de um subcomando")
-    h.add_argument("topic", nargs="?", help="generate | validate")
+    h.add_argument("topic", nargs="?", choices=["generate", "validate"], help="generate | validate")
+
     return p
 
 
 def main() -> None:
-    """Entry point com suporte a 'help' estilo CLI."""
+    """Entry point da CLI.
+
+    Objetivo:
+        - Parsear argumentos
+        - Tratar `help` (geral ou por tópico)
+        - Executar subcomando selecionado
+        - Normalizar erros com `die()`
+
+    Returns:
+        None (encerra o processo via `sys.exit`).
+
+    Side Effects:
+        - Pode chamar rede (generate) e ler/escrever arquivos.
+    """
     parser = build_parser()
     args = parser.parse_args()
 
     if args.command == "help" or not args.command:
         if getattr(args, "topic", None):
             topic = args.topic
-            choices = parser._subparsers._group_actions[0].choices
+            subparsers_action = next(
+                (a for a in parser._actions if isinstance(a, argparse._SubParsersAction)),
+                None,
+            )
+            if not subparsers_action:
+                die("Falha interna: subparsers não encontrados.")
+
+            choices = subparsers_action.choices
             if topic not in choices:
                 die(f"Tópico inválido: {topic}")
+
             choices[topic].print_help()
         else:
             parser.print_help()
