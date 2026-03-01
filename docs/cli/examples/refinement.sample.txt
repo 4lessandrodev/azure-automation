@@ -1,0 +1,13 @@
+Refinamento: Healthcheck
+
+Contexto:
+Precisamos de um endpoint simples para validar que a API está viva e reportar versão.
+
+Requisitos:
+- GET /healthcheck deve retornar 200
+- Retornar JSON com: status, version, timestamp
+- Não logar dados sensíveis
+- Deve ser rápido
+
+Observabilidade:
+- Log estruturado com correlation-id

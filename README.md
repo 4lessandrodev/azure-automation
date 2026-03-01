@@ -1,36 +1,51 @@
 # Azure DevOps Automation — PBIs + Refinement Agent + Tasks Seeder
 
-Este repositório contém duas CLIs em Python que automatizam o backlog no Azure DevOps:
+Este repositório contém duas CLIs em Python para automatizar backlog no Azure DevOps Boards:
 
-1) **`azdo_cli.py`**: cria **PBIs** e **Tasks** diretamente no Azure DevOps Boards a partir de JSON.  
-2) **`refine_cli.py`**: transforma um **refinamento técnico (texto/transcrição/protótipo textual)** em um **JSON de tasks** (pronto para o `azdo_cli.py`), usando OpenAI Responses API + Structured Outputs.
+1) **`azdo_cli.py`**: cria **PBIs** e **Tasks** no Azure DevOps a partir de JSON.  
+2) **`refine_cli.py`**: transforma um **refinamento técnico (texto/transcrição/protótipo textual)** em um **JSON de tasks** pronto para o `azdo_cli.py`, usando **OpenAI Responses API + Structured Outputs**.
 
-
-O objetivo é simples: **apenas o refinamento é manual**. Todo o resto — gerar tasks, validar e criar no board — é automatizado.
+Objetivo prático: **o único passo humano é escrever/refinar o texto**. O restante — gerar tasks, validar e criar no board — é automatizado.
 
 ---
 
 ## Objetivo
 
-- **Produtividade**: criar PBIs e Tasks em lote em segundos.
+- **Produtividade**: criar PBIs e Tasks em lote rapidamente.
 - **Padronização**: títulos, descrições, DoD, tags, iteração e área consistentes.
-- **Reprodutibilidade**: backlog como "infra" — versionado em arquivos JSON no Git.
-- **Menos erro humano**: evita esquecer campos e links pai-filho e reduz retrabalho.
+- **Reprodutibilidade**: backlog como “infra” versionado em JSON.
+- **Menos erro humano**: reduz falhas de vínculo pai-filho e campos esquecidos.
 
 ---
 
-## Visão geral do fluxo (recomendado)
+## Documentação
+
+A documentação completa está em `docs/`:
+
+- **Quickstart**: `docs/quickstart.md`
+- **CLI azdo_cli**: `docs/cli/azdo_cli.md`
+- **CLI refine_cli**: `docs/cli/refine_cli.md`
+- **Formatos JSON**: `docs/formats/pbi_json.md` e `docs/formats/task_json.md`
+- **Segurança e privacidade**: `docs/security-privacy.md`
+- **Troubleshooting**: `docs/troubleshooting.md`
+- **FAQ**: `docs/faq.md`
+
+---
+
+## Visão geral do fluxo
 
 ### Fluxo A — Seed manual (JSON → Azure DevOps)
+
 1. Escreva `pbi.json` → crie PBIs.
 2. Pegue o `id` do PBI → escreva `task.json` com `parent_id`.
 3. Crie as tasks no board.
 
 ### Fluxo B — Refinamento → Agente → JSON → Validação → Azure DevOps (automatizado)
+
 1. Debate manual do refinamento → salva em `refinement.txt`.
-2. `refine_cli.py` gera `task.generated.json`.
-3. Valida o JSON.
-4. `azdo_cli.py` cria as tasks no board.
+2. `refine_cli.py generate` gera `task.generated.json`.
+3. `refine_cli.py validate` valida o JSON.
+4. `azdo_cli.py tasks` cria as tasks no board.
 
 > O target `make run-full` executa o Fluxo B do início ao fim.
 
@@ -49,17 +64,14 @@ O objetivo é simples: **apenas o refinamento é manual**. Todo o resto — gera
 
 ## Configuração de ambiente (.env)
 
-Você pode usar `.env` para não depender de `export` no shell.
-
-Crie um arquivo `.env`:
+Crie um arquivo `.env` (não comitar):
 
 ```env
 OPENAI_API_KEY=coloque_sua_chave_aqui
 AZDO_PAT=coloque_seu_pat_aqui
-````
+```
 
-> Os scripts **carregam `.env`** antes de processar argumentos.
-
+> As duas CLIs carregam `.env` na inicialização.
 
 ---
 
@@ -69,16 +81,24 @@ AZDO_PAT=coloque_seu_pat_aqui
 make install
 ```
 
-Isso cria `.venv` e instala `requirements.txt`.
+Cria `.venv` e instala `requirements.txt`.
 
 ---
 
 ## Makefile (comandos principais)
 
-Veja todos os targets:
+Ver todos os targets:
 
 ```bash
 make help
+```
+
+### Help das CLIs
+
+```bash
+make run-help
+make run-help-azdo
+make run-help-refine
 ```
 
 ### Seeds no Azure DevOps (JSON → Board)
@@ -86,13 +106,13 @@ make help
 **Criar PBIs:**
 
 ```bash
-make run-pbis ORG=4le PROJECT=Lab FILE=./pbi.json
+make run-pbis ORG=4le PROJECT=Lab FILE=./data/pbi.json
 ```
 
 **Criar Tasks:**
 
 ```bash
-make run-tasks ORG=4le PROJECT=Lab FILE=./task.json
+make run-tasks ORG=4le PROJECT=Lab FILE=./data/task.json
 ```
 
 ### Agente de refinamento (TXT → JSON)
@@ -100,30 +120,40 @@ make run-tasks ORG=4le PROJECT=Lab FILE=./task.json
 **Gerar tasks a partir do refinamento:**
 
 ```bash
-make run-refine INPUT=./refinement.txt PARENT_ID=4 ITERATION='Lab\\Sprint 1' AREA=Lab OUT=./data/task.json
+make run-refine INPUT=./data/refinement.txt PARENT_ID=4 ITERATION='Lab\\Sprint 1' AREA=Lab OUT=./data/task.json
 ```
 
 **Validar JSON de tasks:**
 
 ```bash
-make run-refine-validate FILE=./task.json
+make run-refine-validate FILE=./data/task.json PARENT_ID=4
 ```
 
 ### Pipeline completo (Refinamento → JSON → Validar → Criar no board)
 
-Executa tudo em sequência:
-
 ```bash
-make run-full ORG=4le PROJECT=Lab INPUT=./refinement.txt PARENT_ID=4 ITERATION='Lab\\Sprint 1' AREA=Lab
+make run-full ORG=4le PROJECT=Lab INPUT=./data/refinement.txt PARENT_ID=4 ITERATION='Lab\\Sprint 1' AREA=Lab
 ```
 
-Você pode customizar saída e modelo:
+Customizando saída e modelo:
 
 ```bash
 make run-full ORG=4le PROJECT=Lab INPUT=./data/refinement.txt PARENT_ID=4 ITERATION='Lab\\Sprint 1' AREA=Lab OUT=./data/task.generated.json MODEL=gpt-4.1-nano
 ```
 
-> **Model default do agente:** `gpt-4.1-nano` (bom custo/benefício para testes).
+> **Model default do agente:** `gpt-4.1-nano`.
+
+---
+
+## Loading no terminal (opcional)
+
+As CLIs podem mostrar progresso (stdout fica “limpo”; loading sai em stderr).
+
+Desligar:
+
+```bash
+AZDO_PROGRESS=0 REFINE_PROGRESS=0 make run-full ...
+```
 
 ---
 
@@ -165,7 +195,7 @@ Gerar JSON:
 
 ```bash
 python3 refine_cli.py generate \
-  --input ./refinement.txt \
+  --input ./data/refinement.txt \
   --parent-id 4 \
   --iteration "Lab\\Sprint 1" \
   --area-path "Lab" \
@@ -204,7 +234,7 @@ python3 refine_cli.py validate --file ./data/task.generated.json --parent-id 4
 
 ### Observação sobre `key` (idempotência)
 
-Se você usar `key`, o `azdo_cli.py` grava `ext:<key>` em `System.Tags` e consegue evitar duplicar PBIs ao reexecutar.
+Se você usar `key`, o `azdo_cli.py` grava `ext:<key>` em `System.Tags` e consegue evitar duplicar PBIs ao reexecutar (quando `--allow-duplicates` não é usado).
 
 ---
 
@@ -217,14 +247,13 @@ Se você usar `key`, o `azdo_cli.py` grava `ext:<key>` em `System.Tags` e conseg
       "parent_id": 123,
       "parent_url": "opcional (extrai ID de ?workitem=123 ou .../workItems/123)",
       "parent_key": "opcional (lookup por ext:<key> se você usar tags ext:)",
-
       "title": "string (recomendado)",
       "name": "string (fallback)",
       "description": "string (recomendado - texto rico)",
       "state": "To Do",
       "priority": 2,
       "remaining_work": 3,
-      "assigned_to": "",
+      "assigned_to": null,
       "iteration": "Lab\\Sprint 1",
       "activity": "Development",
       "area_path": "Lab",
@@ -236,7 +265,7 @@ Se você usar `key`, o `azdo_cli.py` grava `ext:<key>` em `System.Tags` e conseg
 
 ### Resolução do PBI pai (azdo_cli.py)
 
-O `azdo_cli.py` resolve o pai nesta ordem:
+Ordem de resolução:
 
 1. `parent_id` (preferido)
 2. `parent_url` (extrai o ID)
@@ -292,6 +321,8 @@ O agente retorna um JSON com:
 * `assumptions[]` e `open_questions[]` (quando necessário)
 * `sanitization.notes[]` (o que foi mascarado)
 
+Além disso, o script injeta tasks padrão (`std:*`) para consistência de processo.
+
 ---
 
 ## Boas práticas e armadilhas
@@ -302,11 +333,12 @@ Se você usar:
 
 * `Lab\\Sprint 1`
 * `Lab`
-  Esses paths devem existir no Azure DevOps, senão falha.
+
+Esses paths devem existir no Azure DevOps, senão falha.
 
 ### 2) Campos variam por processo
 
-Alguns campos (ex.: AcceptanceCriteria) dependem do template/processo do Azure DevOps.
+Alguns campos dependem do template/processo do Azure DevOps (ex.: Acceptance Criteria).
 
 ### 3) Não comite segredos
 
@@ -315,8 +347,8 @@ Alguns campos (ex.: AcceptanceCriteria) dependem do template/processo do Azure D
 
 ### 4) Quality gate do agente
 
-O `refine_cli.py validate` existe para evitar mandar lixo ao Azure DevOps.
-Use sempre antes de `azdo_cli.py tasks` (o `run-full` já faz isso).
+Use `refine_cli.py validate` antes de `azdo_cli.py tasks`.
+O `run-full` já faz isso.
 
 ---
 
@@ -326,12 +358,11 @@ MIT
 
 ---
 
-### Diagramas
+## Diagramas
 
-Diagrama de componentes e suas conexões
+### Diagrama de componentes
 
 ```mermaid
-
 flowchart TB
   subgraph REPO["Repositório (diretório local)"]
     MF["Makefile Targets: - install/venv/clean - run-pbis / run-tasks - run-refine / run-refine-validate - run-full"]
@@ -381,7 +412,6 @@ flowchart TB
   C --> D
   AZCLI --> D
   D --> ADO
-  ADO --> D
   D --> OUT2
 
   MF -->|run-pbis| AZCLI
@@ -390,15 +420,11 @@ flowchart TB
   AZCLI --> OUT1
 
   TASKJSON -.->|run-tasks| AZCLI
-
 ```
 
-## Diagrama de Sequência
-
-Sequência de execução dos processos
+### Diagrama de sequência
 
 ```mermaid
-
 sequenceDiagram
   autonumber
   actor TL as Tech Lead / PO
@@ -432,6 +458,4 @@ sequenceDiagram
   ADO-->>AZ: Retorna IDs das tasks criadas
   AZ->>AUD: Salva created_tasks_output.json
   AZ-->>TL: Confirma tasks criadas e linkadas ao PBI
-
 ```
-

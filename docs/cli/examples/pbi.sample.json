@@ -1,0 +1,23 @@
+{
+    "pbis": [
+        {
+            "key": "EX-001",
+            "name": "[Exemplo] Criar pipeline de ingestão",
+            "state": "New",
+            "description": "PBI de exemplo para validar a CLI.",
+            "acceptance_criteria": [
+                "Pipeline roda localmente",
+                "Logs não possuem PII"
+            ],
+            "priority": 2,
+            "effort": 3,
+            "iteration": "Lab\\Sprint 1",
+            "area_path": "Lab",
+            "value_area": "Business",
+            "tags": [
+                "example",
+                "pipeline"
+            ]
+        }
+    ]
+}
