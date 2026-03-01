@@ -397,7 +397,7 @@ flowchart TB
 
 Sequência de execução dos processos
 
-```
+```mermaid
 
 sequenceDiagram
   autonumber
