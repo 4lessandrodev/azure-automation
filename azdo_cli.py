@@ -23,8 +23,8 @@ Exemplos:
   python3 azdo_cli.py help pbis
   python3 azdo_cli.py help tasks
 
-  python3 azdo_cli.py --org 4le --project Lab pbis  --file ./pbi.json
-  python3 azdo_cli.py --org 4le --project Lab tasks --file ./task.json
+  python3 azdo_cli.py --org Name --project Sample pbis  --file ./data/pbi.json
+  python3 azdo_cli.py --org Name --project Sample tasks --file ./data/task.json
 
 Design (atual):
 - PBIs podem ser criados antes (sem id no JSON).
@@ -40,8 +40,10 @@ import base64
 import json
 import os
 import sys
+import threading
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 API_VERSION = "7.1"
 
@@ -70,12 +72,29 @@ if missing:
 # Configuração e .env
 # -----------------------------
 def load_dotenv(path: str = ".env", override: bool = False) -> None:
-    """
-    Carrega variáveis do arquivo .env para o os.environ.
-    - Ignora linhas vazias e comentários (#)
-    - Aceita 'export KEY=VALUE'
-    - Remove aspas simples/duplas ao redor do valor
-    - Por padrão, NÃO sobrescreve env já existente (override=False)
+    """Carrega variáveis de ambiente a partir de um arquivo `.env`.
+
+    Objetivo:
+        Popular `os.environ` com variáveis definidas em um `.env`, evitando
+        dependência de ferramentas externas. Útil para executar a CLI localmente.
+
+    Entradas (Args):
+        path: Caminho do arquivo `.env`.
+        override: Se True, sobrescreve variáveis já presentes em `os.environ`.
+                  Se False, preserva variáveis já definidas.
+
+    Saídas (Returns):
+        None.
+
+    Efeitos colaterais:
+        - Atualiza `os.environ`.
+        - Lê arquivo do disco.
+
+    Observações:
+        - Ignora linhas vazias e comentários iniciados por `#`.
+        - Aceita linhas no formato `export KEY=VALUE`.
+        - Remove aspas simples/duplas externas do valor.
+        - Se o arquivo não existir, retorna silenciosamente.
     """
     if not os.path.isfile(path):
         return
@@ -104,32 +123,119 @@ def load_dotenv(path: str = ".env", override: bool = False) -> None:
 
             os.environ[key] = value
 
-load_dotenv()  # carrega .env na inicialização (se existir)
+
+load_dotenv()  # carrega .env na inicialização
+
 
 # -----------------------------
 # Utilitários
 # -----------------------------
 def die(msg: str, code: int = 1) -> None:
-    """
-    Encerra a execução do programa com erro e mensagem clara.
+    """Encerra a execução do programa com erro e mensagem clara.
 
-    Use para falhas que não valem stacktrace, como:
-    - parâmetro ausente
-    - JSON inválido
-    - falta de PAT
-    - pré-condições quebradas
+    Objetivo:
+        Padronizar falhas "controladas" (sem stacktrace) para cenários previsíveis,
+        como parâmetros ausentes, JSON inválido, ausência de PAT, etc.
+
+    Entradas (Args):
+        msg: Mensagem de erro a ser exibida ao usuário.
+        code: Código de saída do processo (default: 1).
+
+    Saídas (Returns):
+        None (não retorna: finaliza o processo).
+
+    Efeitos colaterais:
+        - Escreve mensagem em `stderr`.
+        - Encerra o processo com `sys.exit(code)`.
     """
     print(f"Erro: {msg}", file=sys.stderr)
     sys.exit(code)
 
 
-def load_json(path: str) -> Dict[str, Any]:
-    """
-    Lê um arquivo JSON do disco e retorna o objeto Python (dict).
+# -----------------------------
+# Loading visual (terminal)
+# -----------------------------
+_PROGRESS_ENABLED = os.getenv("AZDO_PROGRESS", "1") != "0"
 
-    Falha de forma explícita se:
-    - arquivo não existir
-    - conteúdo não for JSON válido
+
+@contextmanager
+def loading(label: str, enabled: bool = True, interval: float = 0.25):
+    """Mostra um indicador simples de execução no terminal.
+
+    Objetivo:
+        Dar feedback visual enquanto operações potencialmente lentas executam
+        (ex.: chamadas HTTP). O indicador é escrito em `stderr` para manter
+        `stdout` limpo para logs/prints de resultado.
+
+    Entradas (Args):
+        label: Texto base exibido (ex.: "wiql", "create_work_item(Task)").
+        enabled: Liga/desliga o loading por chamada.
+        interval: Intervalo em segundos entre atualizações (default: 0.25s).
+
+    Saídas (Yields):
+        Um contexto (`with loading(...):`) durante o qual o loading fica ativo.
+
+    Efeitos colaterais:
+        - Escreve em `stderr` com carriage return (`\\r`).
+        - Cria e gerencia uma thread daemon temporária.
+
+    Condições de ativação:
+        - Só renderiza se `sys.stderr.isatty()` for True (terminal interativo).
+        - Pode ser desativado via env `AZDO_PROGRESS=0`.
+    """
+    if not (enabled and _PROGRESS_ENABLED and sys.stderr.isatty()):
+        yield
+        return
+
+    stop = threading.Event()
+    state = {"last_len": 0, "i": 0}
+    dots = ["", ".", "..", "..."]
+
+    def run() -> None:
+        while not stop.is_set():
+            msg = f"{label}{dots[state['i'] % 4]}"
+            state["i"] += 1
+
+            pad = max(0, state["last_len"] - len(msg))
+            state["last_len"] = len(msg)
+
+            sys.stderr.write("\r" + msg + (" " * pad))
+            sys.stderr.flush()
+            stop.wait(interval)
+
+        # finaliza imprimindo só o label + newline
+        msg = f"{label}"
+        pad = max(0, state["last_len"] - len(msg))
+        sys.stderr.write("\r" + msg + (" " * pad) + "\n")
+        sys.stderr.flush()
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        t.join(timeout=1.0)
+
+
+def load_json(path: str) -> Dict[str, Any]:
+    """Lê um arquivo JSON do disco e retorna o objeto Python (dict).
+
+    Objetivo:
+        Centralizar leitura e validação básica de JSON de entrada.
+
+    Entradas (Args):
+        path: Caminho do arquivo JSON.
+
+    Saídas (Returns):
+        Um dicionário Python (`dict`) com o conteúdo do JSON.
+
+    Erros (Raises/Exit):
+        - Finaliza com `die()` se o arquivo não existir.
+        - Finaliza com `die()` se o conteúdo não for JSON válido.
+
+    Efeitos colaterais:
+        - Lê arquivo do disco.
     """
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -140,31 +246,59 @@ def load_json(path: str) -> Dict[str, Any]:
         die(f"JSON inválido em {path}: {e}")
 
 
-def text_to_html(text: str) -> str:
+def safe_html(text: str) -> str:
+    """Escapa HTML mínimo para evitar quebra/injeção em campos ricos do Azure DevOps.
+
+    Objetivo:
+        Evitar que caracteres `<` e `>` quebram o HTML enviado ao Azure DevOps,
+        reduzindo risco de injeção de HTML.
+
+    Entradas (Args):
+        text: Texto arbitrário.
+
+    Saídas (Returns):
+        String com substituições mínimas: `<` -> `&lt;` e `>` -> `&gt;`.
     """
-    Converte texto com quebras de linha e bullets '-' em HTML simples
-    para o Azure DevOps renderizar corretamente.
+    return str(text).replace("<", "&lt;").replace(">", "&gt;")
+
+
+def text_to_html(text: str) -> str:
+    """Converte texto "markdown-like" simples em HTML para renderização no Azure DevOps.
+
+    Objetivo:
+        Transformar descrições em texto com quebras de linha e bullets em HTML
+        básico aceito por campos como `System.Description`.
+
+    Entradas (Args):
+        text: Texto de entrada contendo parágrafos e listas com prefixo `- `.
+
+    Saídas (Returns):
+        HTML como string, composto de `<p>...</p>` e `<ul><li>...</li></ul>`.
 
     Regras:
-    - Linhas em branco => separação de parágrafos
-    - Blocos de linhas começando com '- ' => <ul><li>...</li></ul>
-    - Escapa HTML para evitar injeção
+        - Linhas em branco quebram parágrafo.
+        - Blocos de linhas começando com `- ` viram listas (`<ul><li>...</li></ul>`).
+        - O conteúdo é escapado via `safe_html()` para reduzir risco de injeção.
+
+    Observação:
+        Não é um parser Markdown completo; é propositalmente simples.
     """
     lines = (text or "").splitlines()
 
     blocks: List[str] = []
     buf: List[str] = []
 
-    def flush_paragraph():
+    def flush_paragraph() -> None:
+        """Finaliza o parágrafo atual (buffer) e escreve um `<p>` em blocks."""
         nonlocal buf
         if not buf:
             return
-        # junta linhas do parágrafo com <br/>
         p = "<br/>".join([safe_html(x) for x in buf])
         blocks.append(f"<p>{p}</p>")
         buf = []
 
-    def flush_list(items: List[str]):
+    def flush_list(items: List[str]) -> None:
+        """Escreve um `<ul>` com `<li>` escapados em blocks."""
         lis = "".join([f"<li>{safe_html(i)}</li>" for i in items])
         blocks.append(f"<ul>{lis}</ul>")
 
@@ -197,42 +331,61 @@ def text_to_html(text: str) -> str:
     return "\n".join(blocks) if blocks else "<p></p>"
 
 
-def safe_html(text: str) -> str:
-    """
-    Faz escaping mínimo de HTML para evitar quebrar campos ricos do Azure DevOps
-    (System.Description e Acceptance Criteria geralmente aceitam HTML).
-    """
-    return str(text).replace("<", "&lt;").replace(">", "&gt;")
-
-
 def html_ul(items: List[str]) -> str:
-    """
-    Converte lista de strings em um <ul><li>..</li></ul> com escaping básico.
+    """Converte uma lista de strings em HTML `<ul><li>...</li></ul>`.
 
-    Útil para Acceptance Criteria: o ADO exibe bem listas em HTML.
+    Objetivo:
+        Gerar HTML de lista para campos como Acceptance Criteria, de forma
+        consistente e escapada.
+
+    Entradas (Args):
+        items: Lista de itens (strings).
+
+    Saídas (Returns):
+        Uma string HTML no formato `<ul><li>...</li>...</ul>`.
+
+    Observação:
+        Cada item é escapado com `safe_html()`.
     """
     safe_items = [safe_html(x) for x in items]
     return "<ul>" + "".join([f"<li>{x}</li>" for x in safe_items]) + "</ul>"
 
 
 def make_basic_auth(pat: str) -> str:
-    """
-    Cria header Authorization no formato Basic Auth esperado pelo Azure DevOps
-    quando se usa PAT.
+    """Cria header Authorization Basic Auth esperado pelo Azure DevOps para uso de PAT.
 
-    Padrão: username vazio e PAT como 'senha' -> base64(':PAT')
+    Objetivo:
+        Construir o valor do header `Authorization` no formato Basic Auth, onde:
+        - username é vazio
+        - senha é o PAT
+        - token final = base64(":<PAT>")
+
+    Entradas (Args):
+        pat: Personal Access Token do Azure DevOps.
+
+    Saídas (Returns):
+        String no formato `Basic <base64(:PAT)>`.
+
+    Segurança:
+        Não faça print desse retorno (contém credencial).
     """
     token = base64.b64encode(f":{pat}".encode("utf-8")).decode("utf-8")
     return f"Basic {token}"
 
 
 def build_headers(pat: str, content_type: str) -> Dict[str, str]:
-    """
-    Monta headers padrão para requisições à API do Azure DevOps.
+    """Monta headers padrão para requisições à API do Azure DevOps.
 
-    content_type varia:
-    - application/json para WIQL
-    - application/json-patch+json para criar work items (JSON Patch)
+    Objetivo:
+        Centralizar criação de headers HTTP, variando o `Content-Type` conforme endpoint.
+
+    Entradas (Args):
+        pat: Personal Access Token.
+        content_type: Content-Type do request (ex.: `application/json`,
+                      `application/json-patch+json`).
+
+    Saídas (Returns):
+        Dicionário com headers: Authorization, Accept, Content-Type.
     """
     return {
         "Authorization": make_basic_auth(pat),
@@ -242,14 +395,19 @@ def build_headers(pat: str, content_type: str) -> Dict[str, str]:
 
 
 def normalize_org_url(org: str) -> str:
-    """
-    Normaliza o argumento de organização.
+    """Normaliza o argumento de organização para a URL base do Azure DevOps.
 
-    Aceita:
-    - '4le'                       -> vira https://dev.azure.com/4le
-    - 'https://dev.azure.com/4le' -> permanece
+    Objetivo:
+        Aceitar entradas curtas (nome da org) ou URL completa e retornar
+        sempre uma URL sem barra final.
 
-    Retorna sempre sem barra final.
+    Entradas (Args):
+        org: Pode ser:
+             - "Name" -> vira "https://dev.azure.com/Name"
+             - "https://dev.azure.com/Name" -> permanece
+
+    Saídas (Returns):
+        URL da organização sem barra final.
     """
     if org.startswith("http://") or org.startswith("https://"):
         return org.rstrip("/")
@@ -257,22 +415,30 @@ def normalize_org_url(org: str) -> str:
 
 
 def extract_work_item_id_from_url(url: str) -> Optional[int]:
-    """
-    Extrai um work item ID de uma URL, suportando:
-    - query param: ?workitem=123
-    - padrão API: .../_apis/wit/workItems/123
+    """Extrai um work item ID a partir de uma URL.
 
-    Retorna None se não conseguir extrair.
+    Objetivo:
+        Suportar uso de `parent_url` (url do board ou API) como referência
+        ao PBI pai, extraindo o ID de forma robusta.
+
+    Entradas (Args):
+        url: URL contendo o ID do Work Item.
+
+    Saídas (Returns):
+        - int com o ID extraído, se encontrado
+        - None se não conseguir extrair
+
+    Estratégias suportadas:
+        - query param: `?workitem=123`
+        - padrão API: `.../_apis/wit/workItems/123`
     """
     try:
         parsed = urlparse(url)
         qs = parse_qs(parsed.query)
 
-        # Ex: ...?workitem=2
         if "workitem" in qs and qs["workitem"]:
             return int(qs["workitem"][0])
 
-        # Ex: .../_apis/wit/workItems/123
         parts = [p for p in parsed.path.split("/") if p]
         if "workItems" in parts:
             idx = parts.index("workItems")
@@ -286,13 +452,22 @@ def extract_work_item_id_from_url(url: str) -> Optional[int]:
 
 
 def normalize_title_from_task(task: Dict[str, Any]) -> str:
-    """
-    Define o título da Task de forma robusta.
+    """Resolve o título de uma Task com fallback seguro.
 
-    Ordem:
-    - title
-    - name
-    - primeira parte do description (fallback)
+    Objetivo:
+        Garantir que toda Task criada tenha um `System.Title` não-vazio.
+
+    Entradas (Args):
+        task: Dicionário com possíveis chaves:
+              - `title` (preferido)
+              - `name`
+              - `description` (fallback parcial)
+
+    Saídas (Returns):
+        Título final (string) não-vazia.
+
+    Erros (Exit):
+        Finaliza com `die()` se nenhum campo permitir compor um título.
     """
     title = task.get("title") or task.get("name")
     if title:
@@ -301,20 +476,28 @@ def normalize_title_from_task(task: Dict[str, Any]) -> str:
     desc = (task.get("description") or "").strip()
     if not desc:
         die("Task precisa ter 'title' (ou 'name') ou ao menos 'description' para gerar um título.")
-    # Fallback simples: corta para não virar um título gigante
+
     return (desc[:80] + "…") if len(desc) > 80 else desc
 
 
 def resolve_parent_id(az: "AzDO", task: Dict[str, Any]) -> int:
-    """
-    Resolve o ID do PBI pai para uma task.
+    """Resolve o ID do PBI pai para uma Task.
 
-    Suporta:
-    1) parent_id (preferido)
-    2) parent_url (extrai id)
-    3) parent_key (lookup via WIQL por tag ext:<key>) [opcional]
+    Objetivo:
+        Determinar o PBI "pai" para vínculo hierárquico ao criar Tasks.
 
-    Se não conseguir resolver, falha.
+    Entradas (Args):
+        az: Cliente AzDO (usado para lookup em modo `parent_key`).
+        task: Dicionário da task. Suporta:
+              1) `parent_id` (preferido)
+              2) `parent_url` (extrai ID)
+              3) `parent_key` (lookup por tag `ext:<key>` via WIQL) [opcional]
+
+    Saídas (Returns):
+        ID do PBI pai (int > 0).
+
+    Erros (Exit):
+        Finaliza com `die()` se não conseguir resolver o parent.
     """
     if task.get("parent_id") is not None:
         try:
@@ -331,7 +514,6 @@ def resolve_parent_id(az: "AzDO", task: Dict[str, Any]) -> int:
             return pid
         die("parent_url informado, mas não foi possível extrair o ID (tente usar parent_id).")
 
-    # Opcional: modo antigo por key/tag ext:
     if task.get("parent_key"):
         pid = az.find_pbi_id_by_ext_key(str(task["parent_key"]))
         if pid:
@@ -346,20 +528,32 @@ def resolve_parent_id(az: "AzDO", task: Dict[str, Any]) -> int:
 # Azure DevOps REST Client
 # -----------------------------
 class AzDO:
-    """
-    Cliente mínimo para Azure DevOps Work Item Tracking.
+    """Cliente mínimo para Azure DevOps Work Item Tracking.
 
-    Responsabilidades:
-    - executar WIQL (opcional, para idempotência por key/tag)
-    - criar work items via JSON Patch (PBI/Task)
+    Objetivo:
+        Encapsular chamadas REST necessárias para:
+        - WIQL (consultas) para idempotência opcional
+        - criação de work items via JSON Patch (PBI/Task)
+
+    Observação:
+        É um cliente intencionalmente pequeno, focado no necessário para a CLI.
     """
 
     def __init__(self, org_url: str, project: str, pat: str, dry_run: bool = False) -> None:
-        """
-        org_url: ex. https://dev.azure.com/4le
-        project: nome do projeto (ex. Lab)
-        pat: Personal Access Token
-        dry_run: se True, não cria nada (simula)
+        """Inicializa o cliente AzDO.
+
+        Entradas (Args):
+            org_url: URL base da organização (ex.: https://dev.azure.com/Name).
+            project: Nome do projeto no Azure DevOps.
+            pat: Personal Access Token.
+            dry_run: Se True, não cria itens (simula chamadas).
+
+        Saídas (Returns):
+            None.
+
+        Efeitos colaterais:
+            - Prepara headers HTTP.
+            - Armazena credenciais em memória (não logar).
         """
         self.org_url = org_url.rstrip("/")
         self.project = project
@@ -370,53 +564,85 @@ class AzDO:
         self.headers_patch = build_headers(pat, "application/json-patch+json")
 
     def _url(self, path: str) -> str:
-        """
-        Concatena org + project + path.
+        """Concatena org + project + path para formar URL final.
+
+        Entradas (Args):
+            path: Caminho relativo (ex.: "/_apis/wit/wiql?...").
+
+        Saídas (Returns):
+            URL final (string).
         """
         return f"{self.org_url}/{self.project}{path}"
 
     def wiql(self, query: str) -> Dict[str, Any]:
+        """Executa uma consulta WIQL.
+
+        Objetivo:
+            Suportar lookup (ex.: idempotência via tag ext:<key>).
+
+        Entradas (Args):
+            query: String WIQL.
+
+        Saídas (Returns):
+            JSON (dict) retornado pela API de WIQL.
+
+        Erros (Raises):
+            RuntimeError: Se status HTTP >= 300.
         """
-        Executa uma consulta WIQL e retorna o JSON da API.
+        with loading("wiql"):
+            url = self._url(f"/_apis/wit/wiql?api-version={API_VERSION}")
 
-        Útil para:
-        - evitar duplicar PBIs quando você usa "key" e grava ext:<key> em tags.
-        """
-        url = self._url(f"/_apis/wit/wiql?api-version={API_VERSION}")
+            if self.dry_run:
+                return {"workItems": []}
 
-        if self.dry_run:
-            return {"workItems": []}
-
-        r = requests.post(url, headers=self.headers_json, json={"query": query}, timeout=30)
-        if r.status_code >= 300:
-            raise RuntimeError(f"WIQL falhou: {r.status_code}\n{r.text}")
-        return r.json()
+            r = requests.post(url, headers=self.headers_json, json={"query": query}, timeout=30)
+            if r.status_code >= 300:
+                raise RuntimeError(f"WIQL falhou: {r.status_code}\n{r.text}")
+            return r.json()
 
     def create_work_item(self, wi_type: str, patch_ops: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Cria um work item (PBI/Task/etc.) via JSON Patch.
+
+        Objetivo:
+            Criar work items usando o endpoint oficial do Azure DevOps.
+
+        Entradas (Args):
+            wi_type: Tipo do Work Item (ex.: "Product Backlog Item", "Task").
+            patch_ops: Lista de operações JSON Patch (dicts).
+
+        Saídas (Returns):
+            JSON (dict) retornado pela API ao criar o item.
+
+        Erros (Raises):
+            RuntimeError: Se status HTTP >= 300.
         """
-        Cria um work item (PBI, Task, etc.) via endpoint de Work Items + JSON Patch.
+        with loading(f"create_work_item({wi_type})"):
+            url = self._url(f"/_apis/wit/workitems/${wi_type}?api-version={API_VERSION}")
 
-        wi_type:
-        - 'Product Backlog Item'
-        - 'Task'
-        """
-        url = self._url(f"/_apis/wit/workitems/${wi_type}?api-version={API_VERSION}")
+            if self.dry_run:
+                return {"id": -1, "url": url, "dry_run": True}
 
-        if self.dry_run:
-            return {"id": -1, "url": url, "dry_run": True}
-
-        r = requests.post(url, headers=self.headers_patch, json=patch_ops, timeout=30)
-        if r.status_code >= 300:
-            raise RuntimeError(f"Create {wi_type} falhou: {r.status_code}\n{r.text}")
-        return r.json()
+            r = requests.post(url, headers=self.headers_patch, json=patch_ops, timeout=30)
+            if r.status_code >= 300:
+                raise RuntimeError(f"Create {wi_type} falhou: {r.status_code}\n{r.text}")
+            return r.json()
 
     def find_pbi_id_by_ext_key(self, ext_key: str) -> Optional[int]:
-        """
-        Encontra o ID de um PBI buscando por tag ext:<ext_key>.
+        """Encontra um PBI por tag `ext:<key>` usando WIQL.
 
-        Retorna:
-        - int (System.Id) do PBI mais recentemente alterado com essa tag
-        - None se não encontrar
+        Objetivo:
+            Implementar idempotência opcional: se o PBI com a chave já existir,
+            a CLI pode pular criação para evitar duplicação.
+
+        Entradas (Args):
+            ext_key: Valor da chave (sem o prefixo `ext:`).
+
+        Saídas (Returns):
+            - ID do PBI (int) se encontrado
+            - None se não existir
+
+        Observação:
+            Retorna o item mais recentemente alterado com a tag.
         """
         q = f"""
         SELECT [System.Id]
@@ -438,12 +664,25 @@ class AzDO:
 # Builders de JSON Patch
 # -----------------------------
 def pbi_patch(pbi: Dict[str, Any], ext_key: Optional[str]) -> List[Dict[str, Any]]:
-    """
-    Constrói JSON Patch ops para criar um Product Backlog Item.
+    """Constrói JSON Patch ops para criar um Product Backlog Item.
 
-    Regras:
-    - Title é obrigatório
-    - Se ext_key existir, adiciona tag ext:<key> (útil para idempotência)
+    Objetivo:
+        Converter um objeto de PBI do JSON de entrada em operações JSON Patch
+        aceitas pelo endpoint de Work Items.
+
+    Entradas (Args):
+        pbi: Dicionário do PBI (ex.: name/title, description, iteration, etc).
+        ext_key: Se informado, adiciona a tag `ext:<ext_key>`.
+
+    Saídas (Returns):
+        Lista de operações JSON Patch (list[dict]) para criação do PBI.
+
+    Erros (Exit):
+        Finaliza com `die()` se não existir `name`/`title` no PBI.
+
+    Observação:
+        - `System.Description` é enviado como HTML básico.
+        - Acceptance Criteria (se lista) é enviada como `<ul>`.
     """
     ops: List[Dict[str, Any]] = []
 
@@ -487,7 +726,6 @@ def pbi_patch(pbi: Dict[str, Any], ext_key: Optional[str]) -> List[Dict[str, Any
             }
         )
 
-    # Tags (opcionais)
     tags = list(pbi.get("tags") or [])
     if ext_key:
         tags.append(f"ext:{ext_key}")
@@ -502,9 +740,25 @@ def pbi_patch(pbi: Dict[str, Any], ext_key: Optional[str]) -> List[Dict[str, Any
 
 
 def task_patch(task: Dict[str, Any], parent_id: int, org_url: str, project: str) -> List[Dict[str, Any]]:
-    """
-    Constrói JSON Patch para criar Task vinculada a um PBI existente.
-    Usa parent_id diretamente e ignora a URL de board (se existir).
+    """Constrói JSON Patch ops para criar uma Task vinculada a um PBI (pai).
+
+    Objetivo:
+        Converter um objeto Task do JSON de entrada em operações JSON Patch,
+        incluindo o relacionamento hierárquico com o PBI pai.
+
+    Entradas (Args):
+        task: Dicionário da task (title/description/etc.).
+        parent_id: ID do PBI pai (int).
+        org_url: URL base da organização (ex.: https://dev.azure.com/Name).
+        project: Nome do projeto ADO.
+
+    Saídas (Returns):
+        Lista de operações JSON Patch para criação da Task.
+
+    Observação:
+        - `System.Description` é convertido via `text_to_html`.
+        - O relacionamento pai-filho é criado via `relations` com
+          `System.LinkTypes.Hierarchy-Reverse` apontando para a API URL do pai.
     """
     ops: List[Dict[str, Any]] = []
 
@@ -539,7 +793,6 @@ def task_patch(task: Dict[str, Any], parent_id: int, org_url: str, project: str)
         ops.append({"op": "add", "path": "/fields/Microsoft.VSTS.Common.Activity", "value": task["activity"]})
 
     if task.get("assigned_to"):
-        # Se for string vazia, não adiciona (ADO costuma rejeitar vazio)
         v = str(task["assigned_to"]).strip()
         if v:
             ops.append({"op": "add", "path": "/fields/System.AssignedTo", "value": v})
@@ -547,7 +800,6 @@ def task_patch(task: Dict[str, Any], parent_id: int, org_url: str, project: str)
     if task.get("tags"):
         ops.append({"op": "add", "path": "/fields/System.Tags", "value": "; ".join(task["tags"])})
 
-    # Link pai-filho (API URL, não URL do board)
     parent_url = f"{org_url.rstrip('/')}/{project}/_apis/wit/workItems/{parent_id}"
     ops.append(
         {
@@ -568,14 +820,28 @@ def task_patch(task: Dict[str, Any], parent_id: int, org_url: str, project: str)
 # Commands (ações da CLI)
 # -----------------------------
 def cmd_create_pbis(az: AzDO, json_path: str, allow_duplicates: bool) -> int:
-    """
-    Comando: pbis
+    """Comando `pbis`: cria Product Backlog Items a partir de um JSON.
 
-    Lê o arquivo pbi.json e cria PBIs.
+    Objetivo:
+        Ler `pbi.json` e criar PBIs no Azure DevOps. Se o PBI tiver `key` e
+        `allow_duplicates` estiver False, tenta evitar duplicação usando WIQL
+        com tag `ext:<key>`.
 
-    - key é opcional:
-      - se existir, adiciona tag ext:<key> e pode evitar duplicar (via WIQL).
-      - se não existir, não há como garantir idempotência (pode duplicar ao reexecutar).
+    Entradas (Args):
+        az: Cliente AzDO configurado (org/projeto/pat).
+        json_path: Caminho do arquivo JSON contendo `{ "pbis": [ ... ] }`.
+        allow_duplicates: Se True, não tenta idempotência (pode duplicar).
+
+    Saídas (Returns):
+        Código de saída (0 em sucesso).
+
+    Efeitos colaterais:
+        - Cria PBIs no Azure DevOps (exceto em `dry_run`).
+        - Gera `created_pbis_output.json` com IDs criados (se houver).
+
+    Erros (Exit/Raises):
+        - Finaliza com `die()` se JSON não tiver estrutura esperada.
+        - Pode propagar `RuntimeError` do client em falhas HTTP.
     """
     data = load_json(json_path)
     pbis = data.get("pbis")
@@ -613,11 +879,26 @@ def cmd_create_pbis(az: AzDO, json_path: str, allow_duplicates: bool) -> int:
 
 
 def cmd_create_tasks(az: AzDO, json_path: str) -> int:
-    """
-    Comando: tasks
+    """Comando `tasks`: cria Tasks e as vincula a PBIs existentes.
 
-    Lê o arquivo task.json e cria Tasks linkadas a PBIs existentes.
-    Resolve parent por parent_id (preferido) ou parent_url.
+    Objetivo:
+        Ler `task.json` e criar Tasks no Azure DevOps, vinculando cada Task
+        ao PBI pai via `parent_id` (preferido) ou `parent_url`.
+
+    Entradas (Args):
+        az: Cliente AzDO configurado (org/projeto/pat).
+        json_path: Caminho do arquivo JSON contendo `{ "tasks": [ ... ] }`.
+
+    Saídas (Returns):
+        Código de saída (0 em sucesso).
+
+    Efeitos colaterais:
+        - Cria Tasks no Azure DevOps (exceto em `dry_run`).
+        - Gera `created_tasks_output.json` com IDs criados (se houver).
+
+    Erros (Exit/Raises):
+        - Finaliza com `die()` se JSON não tiver estrutura esperada.
+        - Pode propagar `RuntimeError` do client em falhas HTTP.
     """
     data = load_json(json_path)
     tasks = data.get("tasks")
@@ -647,11 +928,21 @@ def cmd_create_tasks(az: AzDO, json_path: str) -> int:
 # CLI Parser
 # -----------------------------
 def build_parser() -> argparse.ArgumentParser:
-    """
-    Monta parser da CLI.
+    """Monta o parser da CLI.
 
-    - flags globais: --org, --project, --pat, --dry-run
-    - subcomandos: pbis, tasks, help
+    Objetivo:
+        Definir flags globais e subcomandos com `argparse`.
+
+    Entradas (Args):
+        Nenhuma (usa apenas `argparse`).
+
+    Saídas (Returns):
+        Instância de `argparse.ArgumentParser` configurada.
+
+    Subcomandos:
+        - pbis  (criar PBIs)
+        - tasks (criar Tasks)
+        - help  (ajuda)
     """
     p = argparse.ArgumentParser(
         prog="azdo_cli",
@@ -659,7 +950,7 @@ def build_parser() -> argparse.ArgumentParser:
         add_help=True,
     )
 
-    p.add_argument("--org", help="Organização. Ex: 4le ou https://dev.azure.com/4le")
+    p.add_argument("--org", help="Organização. Ex: Name ou https://dev.azure.com/Name")
     p.add_argument("--project", help="Nome do projeto no Azure DevOps")
     p.add_argument("--pat", default=os.getenv("AZDO_PAT"), help="PAT (ou defina env AZDO_PAT)")
     p.add_argument("--dry-run", action="store_true", help="Simula sem criar itens")
@@ -680,13 +971,26 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    """
-    Entry point:
-    - lê args
-    - executa help explícito se solicitado
-    - valida PAT e parâmetros obrigatórios
-    - cria cliente AzDO
-    - executa o comando escolhido
+    """Entry point da CLI.
+
+    Objetivo:
+        Orquestrar o fluxo principal:
+        - parse args
+        - tratar `help`
+        - validar pré-requisitos (PAT, org, project)
+        - instanciar cliente AzDO
+        - executar subcomando selecionado
+        - normalizar erros para o usuário
+
+    Entradas (Args):
+        Nenhuma diretamente; usa `sys.argv` via `argparse`.
+
+    Saídas (Returns):
+        None (finaliza processo com `sys.exit` internamente).
+
+    Efeitos colaterais:
+        - Pode executar chamadas HTTP ao Azure DevOps.
+        - Pode escrever arquivos `created_*_output.json`.
     """
     parser = build_parser()
     args = parser.parse_args()

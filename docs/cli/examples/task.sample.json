@@ -1,0 +1,19 @@
+{
+    "tasks": [
+        {
+            "parent_id": 123,
+            "state": "To Do",
+            "title": "[Exemplo] Implementar endpoint /healthcheck",
+            "description": "Contexto\nExemplo.\n\nObjetivo\nExemplo.\n\nEscopo\n- Exemplo\n\nFora do escopo\n- Exemplo\n\nPassos sugeridos\n- Exemplo\n\nExemplo(s)\nExemplo ilustrativo (genérico).\n\nCritérios de pronto (DoD)\n- Exemplo\n\nTestes\n- Exemplo\n\nDependências/Riscos\n- Exemplo\n\nReferências do refinamento\n- Exemplo",
+            "priority": 2,
+            "remaining_work": 2,
+            "assigned_to": null,
+            "iteration": "Lab\\Sprint 1",
+            "activity": null,
+            "area_path": "Lab",
+            "tags": [
+                "example"
+            ]
+        }
+    ]
+}
