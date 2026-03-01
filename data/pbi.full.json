@@ -1,0 +1,79 @@
+{
+    "pbis": [
+        {
+            "key": "OAB-LOGIN-001",
+            "name": "[Login] Implementar autenticação com Azure AD",
+            "state": "New",
+            "description": "## Contexto\nPrecisamos autenticar usuários de forma **segura**, **auditável** e compatível com políticas corporativas.\n\n## Objetivo\nImplementar fluxo de login integrado ao **Azure Active Directory (Entra ID)** com suporte a redirecionamento, proteção contra abuso e sessão controlada.\n\n## Escopo\n- Login via Azure AD (OAuth/OIDC)\n- Gestão de sessão/token (expiração e renovação)\n- Proteção básica contra abuso (rate-limit, lockout, logs sem PII)\n- Redirecionamento para login ao acessar rotas restritas\n\n## Fora do escopo\n- MFA customizado fora do Azure AD\n- Cadastro de usuários (provisionamento) além do que o Azure AD fornecer\n\n## Observabilidade mínima\n- Logar evento de sucesso/falha sem dados sensíveis\n- Correlation ID por request\n\n## Notas\n- Evitar armazenar tokens em localStorage se possível; preferir cookies HttpOnly quando aplicável.",
+            "acceptance_criteria": [
+                "**Autenticação:** usuário consegue autenticar usando credenciais do Azure AD.",
+                "**Sessão:** token/sessão expira corretamente e impede acesso após expiração.",
+                "**Proteção:** existem mecanismos básicos contra força bruta (ex.: rate limit / lockout).",
+                "**Acesso restrito:** ao acessar rota protegida sem autenticação, usuário é redirecionado para login e retorna à rota original após autenticar.",
+                "**Segurança:** logs e erros não exibem tokens, segredos ou dados sensíveis."
+            ],
+            "priority": 1,
+            "effort": 5,
+            "iteration": "Lab\\Sprint 2",
+            "area_path": "Lab",
+            "value_area": "Business",
+            "tags": [
+                "auth",
+                "security",
+                "azure-ad",
+                "oidc",
+                "openaudit"
+            ]
+        },
+        {
+            "key": "OAB-AUTHZ-002",
+            "name": "[Acesso] Implementar autorização por perfis (RBAC) e rotas protegidas",
+            "state": "New",
+            "description": "## Contexto\nApós autenticar, precisamos controlar **o que cada perfil pode fazer**. Isso reduz risco operacional e prepara o sistema para evoluções.\n\n## Objetivo\nImplementar **RBAC (Role-Based Access Control)** com perfis e permissões aplicadas por rota/feature.\n\n## Escopo\n- Definir perfis iniciais (ex.: `admin`, `maintainer`, `viewer`)\n- Middleware/guard para proteger rotas\n- Página/rota de acesso negado (403)\n- Mapeamento de permissões por feature (configurável)\n\n## Regras\n- A autorização deve ser verificada no backend (não confiar só no frontend).\n- Falhas de autorização devem retornar 403 com mensagem neutra.\n\n## Observabilidade\n- Registrar eventos de acesso negado (sem PII) para auditoria.\n\n## Notas técnicas\n- Preferir uma estrutura de permissões extensível (ex.: enum + mapa), evitando if/else espalhados.",
+            "acceptance_criteria": [
+                "**Perfis:** existem perfis iniciais documentados e aplicados (admin/maintainer/viewer).",
+                "**Guard:** rotas protegidas retornam 403 quando o usuário não tem permissão.",
+                "**UI/UX:** usuário recebe feedback claro em tela de acesso negado (sem revelar detalhes internos).",
+                "**Backend-first:** decisões de permissão são validadas no backend.",
+                "**Audit trail:** acesso negado gera log estruturado (sem dados sensíveis)."
+            ],
+            "priority": 2,
+            "effort": 8,
+            "iteration": "Lab\\Sprint 2",
+            "area_path": "Lab",
+            "value_area": "Business",
+            "tags": [
+                "authorization",
+                "rbac",
+                "security",
+                "backend",
+                "openaudit"
+            ]
+        },
+        {
+            "key": "OAB-SESSION-003",
+            "name": "[Sessão] Implementar logout, expiração e proteção contra sessão inválida",
+            "state": "New",
+            "description": "## Contexto\nSem controles de sessão, você cria comportamento inconsistente e risco de segurança (sessões zumbis, token reaproveitado, UX confusa).\n\n## Objetivo\nGarantir ciclo completo de sessão:\n- logout confiável\n- expiração previsível\n- tratamento de token inválido/expirado\n\n## Escopo\n- Endpoint de logout (revogar/invalidar sessão quando aplicável)\n- Limpeza de cookies/storage (conforme estratégia)\n- Interceptor para capturar 401 e redirecionar\n- Mensagens neutras e seguras\n\n## Casos de erro (obrigatórios)\n- Token expirado\n- Token inválido\n- Sessão removida/invalidada\n\n## Observabilidade\n- Contabilizar 401 por rota e registrar motivo genérico (sem expor detalhe sensível)\n\n## Notas\n- Manter comportamento consistente entre web e mobile (se existir).",
+            "acceptance_criteria": [
+                "**Logout:** usuário consegue sair e não acessa mais rotas protegidas sem novo login.",
+                "**Expiração:** ao expirar a sessão, o sistema redireciona para login e não fica em loop.",
+                "**401 handling:** respostas 401 são tratadas de forma consistente (UI e API).",
+                "**Segurança:** nenhum token/segredo é exposto em logs ou mensagens de erro.",
+                "**UX:** ao ser deslogado por expiração, usuário recebe aviso claro (ex.: 'Sua sessão expirou')."
+            ],
+            "priority": 2,
+            "effort": 5,
+            "iteration": "Lab\\Sprint 2",
+            "area_path": "Lab",
+            "value_area": "Business",
+            "tags": [
+                "session",
+                "logout",
+                "security",
+                "observability",
+                "openaudit"
+            ]
+        }
+    ]
+}

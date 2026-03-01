@@ -1,0 +1,26 @@
+{
+    "org": "4le",
+    "project": "Lab",
+    "sprints": [
+        {
+            "name": "Sprint 2",
+            "start_date": "2026-03-01",
+            "end_date": "2026-03-15"
+        },
+        {
+            "name": "Sprint 3",
+            "start_date": "2026-03-16",
+            "end_date": "2026-03-31"
+        },
+        {
+            "name": "Sprint 4",
+            "start_date": "2026-04-01",
+            "end_date": "2026-04-15"
+        },
+        {
+            "name": "Sprint 5",
+            "start_date": "2026-04-16",
+            "end_date": "2026-04-30"
+        }
+    ]
+}

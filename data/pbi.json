@@ -1,0 +1,19 @@
+{
+    "pbis": [
+        {
+            "name": "[Login] Implementar autenticação",
+            "state": "New",
+            "description": "Implementar autenticação para o sistema utilizando Azure DevOps. Isso permitirá que os usuários façam login de forma segura e acessem suas contas. A autenticação deve ser integrada com o Azure Active Directory para garantir a segurança e a conformidade com as políticas de acesso da organização.",
+            "acceptance_criteria": [
+                "O sistema deve permitir que os usuários façam login utilizando suas credenciais do Azure Active Directory.",
+                "A autenticação deve ser segura e proteger contra ataques de força bruta e outras ameaças comuns.",
+                "Os usuários devem ser redirecionados para a página de login ao tentar acessar áreas restritas do sistema sem estar autenticados."
+            ],
+            "priority": 2,
+            "item_type": "Produto Backlog Item",
+            "effort": 5,
+            "iteration": "Lab\\Sprint 1",
+            "value_area": "Business"
+        }
+    ]
+}

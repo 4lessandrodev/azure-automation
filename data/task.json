@@ -1,0 +1,21 @@
+{
+    "tasks": [
+        {
+            "parent_id": 4,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=4",
+            "state": "To Do",
+            "title": "Configurar ambiente de desenvolvimento",
+            "description": "Configurar o ambiente de desenvolvimento para o projeto, incluindo a instalação de",
+            "priority": 2,
+            "remaining_work": 3,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "setup",
+                "environment"
+            ]
+        }
+    ]
+}

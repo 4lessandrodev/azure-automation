@@ -1,0 +1,54 @@
+{
+  "tasks": [
+    {
+      "id": 33,
+      "parent_id": 2,
+      "title": "Implementar fluxo completo de login com Azure AD"
+    },
+    {
+      "id": 34,
+      "parent_id": 2,
+      "title": "Configurar rate limiting em endpoints /auth/*"
+    },
+    {
+      "id": 35,
+      "parent_id": 2,
+      "title": "Implementar logout e limpeza de sessão"
+    },
+    {
+      "id": 36,
+      "parent_id": 2,
+      "title": "Tratamento de erros para respostas 401 e mensagens na UI"
+    },
+    {
+      "id": 37,
+      "parent_id": 2,
+      "title": "Documentar variáveis de ambiente e passos de configuração local"
+    },
+    {
+      "id": 38,
+      "parent_id": 2,
+      "title": "[Padrão] Validação do Dev em ambiente local"
+    },
+    {
+      "id": 39,
+      "parent_id": 2,
+      "title": "[Padrão] Testes do QA em ambiente QAS"
+    },
+    {
+      "id": 40,
+      "parent_id": 2,
+      "title": "[Padrão] Abertura de GMUD para aprovação do deploy"
+    },
+    {
+      "id": 41,
+      "parent_id": 2,
+      "title": "[Padrão] Deploy para homologação (DEV / QAS / UAT)"
+    },
+    {
+      "id": 42,
+      "parent_id": 2,
+      "title": "[Padrão] Deploy para produção"
+    }
+  ]
+}

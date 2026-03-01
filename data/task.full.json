@@ -1,0 +1,291 @@
+{
+    "tasks": [
+        {
+            "parent_id": 6,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=6",
+            "state": "To Do",
+            "title": "[Auth] Configurar app registration no Azure AD (Entra ID)",
+            "description": "## Objetivo\nCriar e configurar a aplicação no Azure AD (Entra ID) para permitir autenticação via OIDC.\n\n## Escopo\n- Criar App Registration\n- Definir Redirect URIs (dev/staging/prod)\n- Gerar/registrar secret (ou certificado)\n- Configurar permissões necessárias (mínimo privilégio)\n- Configurar logout redirect (quando aplicável)\n\n## Critérios de pronto\n- Tenant/Client ID registrados\n- Redirect URIs funcionais (sem erro AADSTS)\n- Secret armazenado como variável de ambiente (não comitar)\n\n## Observações\n- Documentar valores necessários no README (sem vazar segredo)\n- Confirmar política de expiração do secret e rotação",
+            "priority": 1,
+            "remaining_work": 4,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "auth",
+                "azure-ad",
+                "oidc",
+                "config",
+                "security"
+            ]
+        },
+        {
+            "parent_id": 6,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=6",
+            "state": "To Do",
+            "title": "[Auth] Implementar fluxo OIDC (login + callback) no backend",
+            "description": "## Objetivo\nImplementar endpoints e middleware para autenticação OIDC com Azure AD.\n\n## Escopo técnico\n- Endpoint de início do login (redirect para provedor)\n- Endpoint de callback para receber code e trocar por token\n- Validação de claims relevantes (issuer, audience, expiração)\n- Normalização do usuário autenticado para o contexto da aplicação\n\n## Regras de segurança\n- Não logar tokens, secrets ou payload bruto\n- Validar `state` e `nonce` para evitar CSRF/replay\n- Timeouts e tratamento de erro do provedor\n\n## Critérios de pronto\n- Login completo funcionando em dev\n- Erros comuns tratados (usuário cancelou, token inválido, expiração)\n- Logs estruturados (sem PII) com correlation id",
+            "priority": 1,
+            "remaining_work": 6,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "auth",
+                "backend",
+                "oidc",
+                "callback",
+                "security"
+            ]
+        },
+        {
+            "parent_id": 6,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=6",
+            "state": "To Do",
+            "title": "[Auth] Implementar gerenciamento de sessão (cookie HttpOnly / storage seguro)",
+            "description": "## Objetivo\nDefinir estratégia de sessão e implementar persistência segura.\n\n## Escopo\n- Definir se será cookie HttpOnly (recomendado) ou alternativa\n- Implementar criação e validação de sessão\n- Implementar expiração e renovação (quando aplicável)\n\n## Regras\n- Sessão deve expirar e invalidar corretamente\n- Evitar armazenar tokens em localStorage se o contexto for browser\n\n## Critérios de pronto\n- Sessão ativa permite acessar rotas protegidas\n- Sessão expirada impede acesso e retorna 401/redirect conforme UX\n- Sem vazamento de token em logs",
+            "priority": 2,
+            "remaining_work": 5,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "session",
+                "cookies",
+                "security",
+                "backend"
+            ]
+        },
+        {
+            "parent_id": 6,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=6",
+            "state": "To Do",
+            "title": "[Auth] Implementar proteção anti-abuso (rate limit + lockout básico)",
+            "description": "## Objetivo\nReduzir risco de força bruta e tentativas automatizadas.\n\n## Escopo\n- Rate limit por IP/identificador (conforme viabilidade)\n- Bloqueio temporário após N falhas (quando houver autenticação local)\n- Respostas neutras (não revelar se usuário existe)\n\n## Critérios de pronto\n- Rate limit configurado e testado\n- Logs de bloqueio/limite atingido (sem dados sensíveis)\n- Sem impacto indevido em usuários legítimos (threshold conservador)",
+            "priority": 2,
+            "remaining_work": 4,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "security",
+                "rate-limit",
+                "abuse-prevention",
+                "backend"
+            ]
+        },
+        {
+            "parent_id": 6,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=6",
+            "state": "To Do",
+            "title": "[Auth] Documentar variáveis de ambiente e fluxo de login (README + exemplos)",
+            "description": "## Objetivo\nGarantir que qualquer dev consiga reproduzir o fluxo localmente sem adivinhar configuração.\n\n## Escopo\n- Documentar variáveis: CLIENT_ID, TENANT_ID, REDIRECT_URI, SECRET (sem valores reais)\n- Passo a passo do fluxo OIDC\n- Checklist de troubleshooting (erros AADSTS comuns)\n\n## Critérios de pronto\n- README atualizado com seção de Auth\n- Sem segredos reais no repositório\n- Documentação revisada e objetiva",
+            "priority": 3,
+            "remaining_work": 2,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Documentation",
+            "area_path": "Lab",
+            "tags": [
+                "docs",
+                "auth",
+                "setup",
+                "readme"
+            ]
+        },
+        {
+            "parent_id": 7,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=7",
+            "state": "To Do",
+            "title": "[RBAC] Definir matriz de permissões (roles x actions) e padrões",
+            "description": "## Objetivo\nDefinir de forma explícita quais perfis podem executar quais ações.\n\n## Escopo\n- Roles iniciais: admin, maintainer, viewer\n- Ações iniciais: view_dashboard, manage_users, manage_settings, view_reports\n- Definir regra padrão (deny by default)\n\n## Critérios de pronto\n- Matriz documentada (arquivo markdown ou json)\n- Ações nomeadas de forma consistente\n- Padrão definido: negar se não explicitamente permitido",
+            "priority": 1,
+            "remaining_work": 3,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Design",
+            "area_path": "Lab",
+            "tags": [
+                "rbac",
+                "security",
+                "design",
+                "permissions"
+            ]
+        },
+        {
+            "parent_id": 7,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=7",
+            "state": "To Do",
+            "title": "[RBAC] Implementar middleware/guard de autorização no backend",
+            "description": "## Objetivo\nAplicar autorização no backend para rotas/handlers.\n\n## Escopo\n- Middleware que recebe o contexto do usuário autenticado\n- Verifica permissões exigidas pela rota\n- Retorna 403 quando não autorizado\n\n## Regras\n- Backend é fonte da verdade (não confiar no frontend)\n- Resposta 403 sem vazar detalhes de regra interna\n\n## Critérios de pronto\n- Rotas anotadas com permissões\n- Tentativas não autorizadas retornam 403\n- Testes cobrindo casos básicos",
+            "priority": 1,
+            "remaining_work": 6,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "rbac",
+                "backend",
+                "middleware",
+                "security"
+            ]
+        },
+        {
+            "parent_id": 7,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=7",
+            "state": "To Do",
+            "title": "[RBAC] Criar mecanismo configurável de permissões (mapa/enum central)",
+            "description": "## Objetivo\nEvitar permissões espalhadas em if/else; centralizar em um módulo configurável.\n\n## Escopo\n- Definir enum/const de actions\n- Mapear role -> actions permitidas\n- Helper `can(user, action)`\n\n## Critérios de pronto\n- Estrutura central única\n- Fácil de adicionar nova action\n- Cobertura de testes para `can()`",
+            "priority": 2,
+            "remaining_work": 5,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "rbac",
+                "permissions",
+                "architecture",
+                "test"
+            ]
+        },
+        {
+            "parent_id": 7,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=7",
+            "state": "To Do",
+            "title": "[RBAC] Implementar tela/rota de acesso negado (403) e UX consistente",
+            "description": "## Objetivo\nFornecer feedback claro ao usuário quando não autorizado.\n\n## Escopo\n- Página/rota para 403\n- Mensagem neutra: \"Você não tem permissão para acessar este recurso\"\n- Link para voltar ou solicitar acesso (se aplicável)\n\n## Critérios de pronto\n- UX consistente (sem loops)\n- Não expõe detalhes internos de permissões\n- Comportamento acessível (foco, leitura por screen reader)",
+            "priority": 3,
+            "remaining_work": 3,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "ux",
+                "accessibility",
+                "rbac",
+                "frontend"
+            ]
+        },
+        {
+            "parent_id": 7,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=7",
+            "state": "To Do",
+            "title": "[RBAC] Auditoria: log estruturado de acesso negado (sem PII)",
+            "description": "## Objetivo\nTer trilha mínima para detectar abuso e entender tentativas de acesso.\n\n## Escopo\n- Logar evento de 403 com:\n  - route/feature\n  - role do usuário\n  - correlation_id\n  - timestamp\n- Não logar identificadores pessoais/tokens\n\n## Critérios de pronto\n- Logs estruturados\n- Eventos de 403 aparecem em console/observabilidade\n- Sem PII em payload",
+            "priority": 2,
+            "remaining_work": 2,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "observability",
+                "logging",
+                "rbac",
+                "security"
+            ]
+        },
+        {
+            "parent_id": 8,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=8",
+            "state": "To Do",
+            "title": "[Session] Implementar endpoint de logout e invalidação de sessão",
+            "description": "## Objetivo\nPermitir que o usuário encerre a sessão de forma confiável.\n\n## Escopo\n- Endpoint /logout\n- Invalidação da sessão/token (conforme estratégia)\n- Limpeza de cookies/headers\n\n## Critérios de pronto\n- Após logout, rotas protegidas retornam 401/redirect\n- Sessão não permanece válida\n- Sem vazamento de dados em logs",
+            "priority": 1,
+            "remaining_work": 4,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "session",
+                "logout",
+                "security",
+                "backend"
+            ]
+        },
+        {
+            "parent_id": 8,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=8",
+            "state": "To Do",
+            "title": "[Session] Tratar expiração de sessão e renovação (quando aplicável)",
+            "description": "## Objetivo\nGarantir que sessão expirada não cause comportamento inconsistente.\n\n## Escopo\n- Definir TTL padrão\n- Renovação controlada (se existir refresh)\n- Resposta consistente ao expirar: 401 + instrução de login\n\n## Critérios de pronto\n- Sessão expira previsivelmente\n- Renovação não cria loops\n- Casos de erro testados",
+            "priority": 2,
+            "remaining_work": 5,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "session",
+                "expiry",
+                "refresh",
+                "backend"
+            ]
+        },
+        {
+            "parent_id": 8,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=8",
+            "state": "To Do",
+            "title": "[Session] Implementar interceptor/handler global para 401 (UX consistente)",
+            "description": "## Objetivo\nAo receber 401, o cliente deve reagir de forma uniforme.\n\n## Escopo\n- Interceptor no cliente (fetch/axios) ou middleware na UI\n- Redirecionar para login\n- Preservar rota original (returnUrl)\n\n## Critérios de pronto\n- 401 não vira loop\n- Usuário volta para a rota original após login\n- Mensagem \"Sessão expirada\" quando aplicável",
+            "priority": 2,
+            "remaining_work": 4,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "frontend",
+                "session",
+                "401",
+                "ux"
+            ]
+        },
+        {
+            "parent_id": 8,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=8",
+            "state": "To Do",
+            "title": "[Session] Testes: cenários de token inválido, expirado e sessão removida",
+            "description": "## Objetivo\nGarantir robustez do ciclo de sessão.\n\n## Escopo\n- Testar token inválido\n- Testar token expirado\n- Testar sessão revogada\n- Verificar respostas: 401/redirect e mensagens\n\n## Critérios de pronto\n- Testes automatizados cobrindo os 3 cenários\n- Logs sem PII\n- Sem regressão em fluxo de login",
+            "priority": 2,
+            "remaining_work": 5,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Testing",
+            "area_path": "Lab",
+            "tags": [
+                "tests",
+                "session",
+                "security",
+                "regression"
+            ]
+        },
+        {
+            "parent_id": 8,
+            "parent_url": "https://dev.azure.com/4le/Lab/_sprints/taskboard/Lab%20Team/Lab/Sprint%201?workitem=8",
+            "state": "To Do",
+            "title": "[Session] Observabilidade: métricas de 401/403 e logs neutros sem PII",
+            "description": "## Objetivo\nTer visibilidade sobre falhas de autenticação/autorização sem expor dados.\n\n## Escopo\n- Contador de respostas 401/403 por rota\n- Log estruturado com correlation_id\n- Sem tokens, sem e-mails, sem identificadores pessoais\n\n## Critérios de pronto\n- Métricas/contadores disponíveis\n- Logs com formato consistente\n- Revisão final garantindo ausência de PII",
+            "priority": 3,
+            "remaining_work": 3,
+            "assigned_to": "",
+            "iteration": "Lab\\Sprint 1",
+            "activity": "Development",
+            "area_path": "Lab",
+            "tags": [
+                "observability",
+                "metrics",
+                "logging",
+                "security"
+            ]
+        }
+    ]
+}

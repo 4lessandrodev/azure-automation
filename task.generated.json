@@ -1,0 +1,206 @@
+{
+  "meta": {
+    "agent": "refinement_tasks",
+    "agent_version": "1.0",
+    "created_at": "2023-10-04T00:00:00Z",
+    "input_hash": "abcdef123456",
+    "parent_id": 2,
+    "iteration": "Lab\\Sprint 1",
+    "area_path": "Lab"
+  },
+  "tasks": [
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "title": "Implementar fluxo completo de login com Azure AD",
+      "description": "Contexto: Essa task é responsável por implementar o fluxo de autenticação via Azure AD (Entra ID) usando o protocolo OIDC Authorization Code Flow, afetando a autenticação dos usuários na aplicação web.\n\nObjetivo: Permitir login seguro, validações básicas e integração frontend e backend.\n\nEscopo:\n- Criar endpoint /auth/login para redirecionar ao Azure AD.\n- Criar endpoint /auth/callback para receber e trocar o código pelo token.\n- Validar claims `issuer`, `audience`, `exp`, `iat`.\n- Implementar login via botão 'Entrar com Microsoft'.\n- Manter sessão via cookie HttpOnly.\n\nFora do escopo:\n- Multi-tenant, MFA, provisionamento e permissões RBAC.\n\nPassos sugeridos:\n- Configurar variáveis de ambiente.\n- Criar rotas backend de autorização.\n- Implementar validações nas claims.\n- Testar fluxo completo de login/logout.\n\nExemplo ilustrativo (genérico):\n- Request: Usuário clica em login.\n- Redirecionamento: Para Azure AD.\n- Response: Com código.\n- Troca do código por tokens.\n- Armazenar sessão no cookie.\n\nCritérios de pronto:\n- fluxo de login completo funcionando e validando claims.\n- Sessão persistente via cookie.\n- Login funciona na UI.\n- Logout limpa sessão.\n- Tratamento de erro com mensagens neutras.",
+      "priority": 1,
+      "remaining_work": 16,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "login",
+        "azuread",
+        "oidc"
+      ]
+    },
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "title": "Configurar rate limiting em endpoints /auth/*",
+      "description": "Contexto: Para garantir segurança na API, especialmente nas rotas de autenticação, implementar rate limiting.\n\nObjetivo: Limitar a 20 requisições por minuto por IP no endpoint /auth/*.\n\nEscopo:\n- Implementar middleware de rate limiting.\n- Aplicar especificamente às rotas /auth/login e /auth/callback.\n\nFora do escopo:\n- Rate limiting para outros endpoints.\n- Ajuste do limite após testes iniciais.\n\nPassos sugeridos:\n- Escolher biblioteca/middleware de rate limiting compatível.\n- Configurar limite de requisições.\n- Inserir middleware na rota.\n- Testar limite com requisições simultâneas.\n\nExemplo ilustrativo (genérico):\n- Requisições > 20 em 1 minuto: receber resposta 429.\n\nCritérios de pronto:\n- Middleware aplicado às rotas /auth/*.\n- Limite de 20 requisições/min por IP ativo.\n- Resposta adequada ao limite excedido.",
+      "priority": 2,
+      "remaining_work": 4,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "security",
+        "rate-limit"
+      ]
+    },
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "title": "Implementar logout e limpeza de sessão",
+      "description": "Contexto: Após login, o usuário deve poder encerrar sua sessão, removendo o cookie e invalidando a sessão no backend.\n\nObjetivo: Garantir logout completo que remova cookies e reinicie o fluxo de autenticação ao tentar acessar rotas protegidas.\n\nEscopo:\n- Criar endpoint /auth/logout.\n- Remover cookie de sessão.\n- Redirecionar para página de login ou página inicial.\n\nFora do escopo:\n- Gerenciamento avançado de sessões ou logout de múltiplas sessões.\n\nPassos sugeridos:\n- Implementar endpoint que limpa cookie HttpOnly.\n- Garantir que todas as rotas protegidas verifiquem sessão ativa.\n- Testar logout e tentativa de acesso pós-logout.\n\nExemplo ilustrativo (genérico):\n- Usuário clica em logout.\n- Endpoint limpa cookie e redireciona.\n- Página protegida redireciona para login.\n\nCritérios de pronto:\n- Endpoint de logout funcional.\n- Cookie de sessão removido.\n- Proteções funcionais após logout.",
+      "priority": 2,
+      "remaining_work": 8,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "session",
+        "logout"
+      ]
+    },
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "title": "Tratamento de erros para respostas 401 e mensagens na UI",
+      "description": "Contexto: Quando a sessão expira ou ocorre erro na autenticação, a API retorna 401, e a interface deve tratar esse cenário exibindo uma mensagem ao usuário e redirecionando para login.\n\nObjetivo: Implementar tratamento consistente de respostas 401 na UI.\n\nEscopo:\n- Detectar respostas 401 na requisição API.\n- Exibir aviso de sessão expirada.\n- Redirecionar para página de login.\n\nFora do escopo:\n- Tratamentos para outros códigos de erro.\n- Personalizações de mensagens complexas.\n\nPassos sugeridos:\n- Interceptar requisições com fetch/axios.\n- Implementar lógica de tratamento de erro.\n- Testar expiração de sessão simulando 401.\n\nExemplo ilustrativo (genérico):\n- Recebe 401 após tentar acesso.\n- UI mostra alerta “Sessão expirada” e redireciona.\n\nCritérios de pronto:\n- Resposta 401 é capturada.\n- Mensagem visível ao usuário.\n- Redirecionamento para login ocorre automaticamente.",
+      "priority": 2,
+      "remaining_work": 6,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "ui",
+        "error handling"
+      ]
+    },
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "title": "Documentar variáveis de ambiente e passos de configuração local",
+      "description": "Contexto: Como parte das tarefas de autenticação, é necessário documentar as variáveis de ambiente usadas e passos para rodar a implementação localmente.\n\nObjetivo: Fornecer documentação clara para desenvolvedores configurarem o projeto e entenderem variáveis essenciais.\n\nEscopo:\n- Listar variáveis: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_REDIRECT_URI, SESSION_TTL_HOURS.\n- Descrever o propósito de cada variável.\n- Instruir passos para configurar arquivo .env e rodar o projeto local.\n\nFora do escopo:\n- Documentação de infraestrutura completa.\n- Detalhes de CI/CD.\n\nPassos sugeridos:\n- Criar seção no README.\n- Inserir exemplos de valor e instruções.\n- Configurar variáveis no ambiente local.\n\nExemplo ilustrativo (genérico):\n- Variável AZURE_TENANT_ID: ID do tenant Azure AD.\n- Como setar no arquivo .env.\n- Como rodar o projeto.\n\nCritérios de pronto:\n- Documento atualizado no README.\n- Variáveis listadas com propósitos.\n- Instruções de setup completas.",
+      "priority": 3,
+      "remaining_work": 4,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "documentation",
+        "setup"
+      ]
+    },
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "area_path": "Lab",
+      "tags": [
+        "std:dev-local-validate",
+        "dev",
+        "local",
+        "validation",
+        "smoke"
+      ],
+      "priority": 2,
+      "remaining_work": 2,
+      "activity": "Development",
+      "title": "[Padrão] Validação do Dev em ambiente local",
+      "description": "Contexto\nApós concluir o desenvolvimento, é obrigatório validar localmente para reduzir retrabalho e evitar repassar falhas óbvias para QA.\n\nObjetivo\nConfirmar que o fluxo implementado funciona localmente com dados/configuração equivalentes ao esperado.\n\nEscopo\n- Subir ambiente local (API/UI, se aplicável)\n- Executar o fluxo ponta-a-ponta relacionado ao PBI\n- Validar logs básicos (sem PII/segredos)\n\nFora do escopo\n- Testes exploratórios profundos (isso é QA)\n- Ajustes de ambiente que não sejam necessários ao fluxo\n\nPassos sugeridos\n- Rodar setup do projeto\n- Executar fluxo principal e casos de erro relevantes\n- Capturar evidências mínimas (prints/logs não sensíveis)\n\nExemplo(s)\nExemplo ilustrativo (genérico):\n- Caso feliz: login -> ação principal -> resposta esperada\n- Caso erro: credencial inválida -> mensagem neutra -> status correto\n\nCritérios de pronto (DoD)\n- Fluxo principal funciona localmente\n- Casos de erro principais retornam comportamento esperado\n- Nenhum log expõe tokens/segredos\n\nTestes\n- Rodar unit tests (se existirem)\n- Rodar smoke manual do fluxo\n\nDependências/Riscos\n- Dependência: variáveis de ambiente local corretas\n- Risco: ambiente local divergente de QAS\n\nReferências do refinamento\n- Task padrão de processo (sempre aplicável)\n"
+    },
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "area_path": "Lab",
+      "tags": [
+        "std:qa-qas",
+        "qa",
+        "qas",
+        "testing",
+        "regression"
+      ],
+      "priority": 2,
+      "remaining_work": 4,
+      "activity": "Testing",
+      "title": "[Padrão] Testes do QA em ambiente QAS",
+      "description": "Contexto\nDepois da validação do dev, o QA executa testes de regressão e exploração em QAS para reduzir risco antes de subir para UAT/produção.\n\nObjetivo\nValidar funcionalmente em QAS que o escopo do PBI está correto e não quebrou fluxos correlatos.\n\nEscopo\n- Executar testes funcionais do PBI em QAS\n- Rodar smoke + regressão mínima (rotas/fluxos relacionados)\n- Reportar evidências e bugs encontrados\n\nFora do escopo\n- Performance/Load (se não tiver sido solicitado)\n- Pentest (se não tiver sido solicitado)\n\nPassos sugeridos\n- Confirmar build/version em QAS\n- Executar casos de teste definidos no refinamento\n- Registrar evidências (sem dados sensíveis)\n\nExemplo(s)\nExemplo ilustrativo (genérico):\n- Caso feliz + 2 casos de erro\n- Verificar status codes e mensagens neutras\n\nCritérios de pronto (DoD)\n- Casos de teste do escopo passam\n- Sem regressões críticas detectadas\n- Bugs abertos e triados quando aplicável\n\nTestes\n- Execução manual + checklist\n- Se existir: suíte automatizada em QAS\n\nDependências/Riscos\n- Dependência: deploy em QAS concluído\n- Risco: dados/config divergente\n\nReferências do refinamento\n- Task padrão de processo (sempre aplicável)\n"
+    },
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "area_path": "Lab",
+      "tags": [
+        "std:gmud",
+        "change",
+        "gmud",
+        "approval",
+        "governance"
+      ],
+      "priority": 3,
+      "remaining_work": 2,
+      "activity": null,
+      "title": "[Padrão] Abertura de GMUD para aprovação do deploy",
+      "description": "Contexto\nPara promover mudanças entre ambientes e produção, é necessário abrir GMUD conforme governança.\n\nObjetivo\nGarantir aprovação formal para deploy (rastreabilidade e compliance).\n\nEscopo\n- Criar GMUD com resumo da mudança\n- Incluir riscos, rollback e evidências de teste\n- Submeter para aprovação\n\nFora do escopo\n- Mudanças emergenciais fora do fluxo padrão (a menos que explicitado)\n\nPassos sugeridos\n- Preencher descrição objetiva do que mudou\n- Anexar evidências (QA/dev) e plano de rollback\n- Solicitar aprovação\n\nExemplo(s)\nExemplo ilustrativo (genérico):\n- Mudança: ajuste em autenticação\n- Risco: login indisponível\n- Rollback: reverter release X\n\nCritérios de pronto (DoD)\n- GMUD criada e completa\n- Aprovada pelo responsável\n\nTestes\n- Referenciar validação local + QAS\n\nDependências/Riscos\n- Dependência: evidências de QA\n- Risco: janela de deploy indisponível\n\nReferências do refinamento\n- Task padrão de processo (sempre aplicável)\n"
+    },
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "area_path": "Lab",
+      "tags": [
+        "std:deploy-nonprod",
+        "deploy",
+        "dev",
+        "qas",
+        "uat",
+        "release"
+      ],
+      "priority": 2,
+      "remaining_work": 3,
+      "activity": null,
+      "title": "[Padrão] Deploy para homologação (DEV / QAS / UAT)",
+      "description": "Contexto\nPara validar em cadeia, a mudança deve ser promovida para ambientes não produtivos.\n\nObjetivo\nDisponibilizar a versão para validação em DEV/QAS/UAT conforme pipeline.\n\nEscopo\n- Executar pipeline de deploy para DEV\n- Promover para QAS\n- Promover para UAT (se aplicável)\n- Validar healthcheck e versão\n\nFora do escopo\n- Deploy produção (tem task específica)\n\nPassos sugeridos\n- Rodar pipeline CI/CD\n- Verificar logs/healthcheck\n- Informar QA para iniciar validação\n\nExemplo(s)\nExemplo ilustrativo (genérico):\n- Validar endpoint /healthcheck retorna 200\n- Conferir versão/tag do build\n\nCritérios de pronto (DoD)\n- Deploy concluído sem erros\n- Healthcheck ok\n- Versão correta em DEV/QAS/UAT\n\nTestes\n- Smoke rápido pós-deploy\n\nDependências/Riscos\n- Dependência: pipeline configurado\n- Risco: config por ambiente\n\nReferências do refinamento\n- Task padrão de processo (sempre aplicável)\n"
+    },
+    {
+      "parent_id": 2,
+      "state": "To Do",
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "area_path": "Lab",
+      "tags": [
+        "std:deploy-prod",
+        "deploy",
+        "prod",
+        "release",
+        "monitoring"
+      ],
+      "priority": 1,
+      "remaining_work": 2,
+      "activity": null,
+      "title": "[Padrão] Deploy para produção",
+      "description": "Contexto\nApós validações e aprovação (GMUD), a mudança é promovida para produção.\n\nObjetivo\nPublicar a versão em produção com risco controlado e monitoramento.\n\nEscopo\n- Executar deploy de produção\n- Validar healthcheck e métricas\n- Confirmar comportamento do fluxo principal\n\nFora do escopo\n- Mudanças fora do pacote aprovado\n\nPassos sugeridos\n- Confirmar GMUD aprovada\n- Executar pipeline de produção\n- Monitorar logs/métricas\n- Executar smoke pós-deploy\n\nExemplo(s)\nExemplo ilustrativo (genérico):\n- Smoke: login -> ação principal -> sucesso\n- Monitorar aumento de 401/500\n\nCritérios de pronto (DoD)\n- Deploy concluído\n- Healthcheck ok\n- Smoke pós-deploy executado\n- Sem alertas críticos\n\nTestes\n- Smoke pós-deploy (manual/automatizado)\n\nDependências/Riscos\n- Dependência: janela de deploy + GMUD\n- Risco: regressão em produção\n\nReferências do refinamento\n- Task padrão de processo (sempre aplicável)\n"
+    }
+  ],
+  "assumptions": [
+    "Utilizar cookies HttpOnly e Secure para sessões.",
+    "Implementar validações básicas das claims do token.",
+    "Variáveis de ambiente configuradas pelos desenvolvedores.",
+    "A aplicação frontend utiliza fetch ou axios para requisições."
+  ],
+  "open_questions": [
+    "Quais URLs finais de staging e produção?",
+    "Vamos usar secret ou certificado no App Registration?",
+    "Qual mecanismo de armazenamento de sessão? (Memória, Redis, etc.)",
+    "Há necessidade de suporte multi-tab ou refresh?",
+    "Qual biblioteca OIDC/JWT será adotada?"
+  ],
+  "sanitization": {
+    "notes": []
+  }
+}

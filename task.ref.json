@@ -1,0 +1,114 @@
+{
+  "meta": {
+    "agent": "agente de refinamento",
+    "agent_version": "1.0",
+    "created_at": "2023-10-03T12:00:00Z",
+    "input_hash": "abc123xyz",
+    "parent_id": 4,
+    "iteration": "Lab\\Sprint 1",
+    "area_path": "Lab"
+  },
+  "tasks": [
+    {
+      "parent_id": 4,
+      "state": "To Do",
+      "title": "Implementar endpoint /auth/login para redirecionar ao Azure AD",
+      "description": "Este endpoint inicia o fluxo de autenticação redirecionando o usuário para o login do Azure AD usando o fluxo de Authorization Code. É a entrada para o login do sistema.\n\nContexto: Afeta o backend e o fluxo de login.\n\nObjetivo: Permitir que o usuário inicie sessão através do Azure AD.\n\nEscopo:\n- Criar rota /auth/login.\n- Gerar URL de redirecionamento com client_id, redirect_uri, response_type=code, scope, state, nonce.\n- Fazer redirect do usuário.\n\nFora do escopo:\n- Validação de tokens ou callback (será tratado em outra tarefa).\n\nPassos sugeridos:\n- Criar endpoint no Node/Express.\n- Recursos de configuração via variáveis de ambiente.\n- Testar redirecionamento local.\n\nExemplo(s):\n- GET /auth/login dispara um redirect para o Azure AD com os parâmetros corretos.\n\nCritérios de pronto:\n- Endpoint acessível e realiza redirect com URL válido.\n- Variáveis de ambiente configuradas.\n\nTestes:\n- Acesso ao /auth/login gera um redirect URL ao Azure AD.\n- Variáveis de ambiente presentes.\n\nDependências/Riscos:\n- Configuração correta do Azure AD.\n- Variável redirect_uri deve estar cadastrada no App Registration.\n\nReferências do refinamento:\n- Endpoint /auth/login inicia redirect para Azure AD.",
+      "priority": 1,
+      "remaining_work": 4,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "backend",
+        "auth",
+        "endpoint"
+      ]
+    },
+    {
+      "parent_id": 4,
+      "state": "To Do",
+      "title": "Implementar endpoint /auth/callback para processamento do código OAuth",
+      "description": "Este endpoint processa o callback do Azure AD, validando o 'code', trocando pelo token de acesso via API e validando claims.\n\nContexto: Afeta o backend, possibilitando recuperar tokens e claims do usuário.\n\nObjetivo: Obter e validar tokens de autenticação após login pelo Azure AD.\n\nEscopo:\n- Criar rota /auth/callback.\n- Validar parâmetros recebidos: code, state, nonce.\n- Trocar código por tokens usando client_secret.\n- Validar issuer, audience, exp, iat nas claims.\n- Estabelecer sessão com cookie HttpOnly.\n\nFora do escopo:\n- Sessões no frontend (será tratado em outra tarefa).\n\nPassos sugeridos:\n- Receber requisição na rota /auth/callback.\n- Validar parâmetros e estado.\n- Fazer requisição ao token endpoint do Azure AD.\n- Validar tokens recebidos.\n- Criar sessão e setar cookie.\n- Redirecionar ao returnUrl.\n\nExemplo(s):\n- Recebe request com code e state, troca pelo token, valida claims.\n\nCritérios de pronto:\n- Endpoint troca código por token com sucesso.\n- Sessão criada e cookie setado.\n- Redirecionamento adequado após login.\n\nTestes:\n- Simular callback com código válido.\n- Validar armazenamento da sessão.\n- Testar requisição com código inválido.\n\nDependências/Riscos:\n- Comunicação com API do Azure AD.\n- Gerenciamento correto de state/nounce.\n\nReferências do refinamento:\n- Endpoint /auth/callback troca código por tokens e valida claims.",
+      "priority": 1,
+      "remaining_work": 6,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "backend",
+        "auth",
+        "callback"
+      ]
+    },
+    {
+      "parent_id": 4,
+      "state": "To Do",
+      "title": "Implementar sessão via cookie HttpOnly com TTL configurável",
+      "description": "Gerenciar sessão do usuário com cookies HttpOnly e Secure, com TTL de 8 horas, podendo ser ajustado por variável de ambiente. Garantir que o cookie seja atualizado ou expira corretamente.\n\nContexto: Afeta o backend e a API, garantindo sessões estáveis.\n\nObjetivo: Manter sessão segura e persistente enquanto válida.\n\nEscopo:\n- Criar mecanismo para criar cookie de sessão após login.\n- Configurar cookie como HttpOnly e Secure (quando em produção).\n- Obedecer variável de TTL configurable.\n- Implementar expiração e renovação.\n\nFora do escopo:\n- Persistência em cache ou banco (Simples cookie session).\n\nPassos sugeridos:\n- Implementar setCookie após validação de token.\n- Respeitar TTL na configuração do cookie.\n- Testar expiração na sessão.\n\nExemplo(s):\n- Cookie de sessão com TTL de 8h, HttpOnly, Secure.\n\nCritérios de pronto:\n- Cookie criado e enviado no cabeçalho.\n- Sessão expira após TTL sem atividade.\n- Configuração via variável de ambiente válida.\n\nTestes:\n- Login gera cookie adequado.\n- Sessão expira após TTL.\n- Cookie não acessível via JS.\n\nDependências/Riscos:\n- Configuração adequada do Secure/SameSite.\n- Risco de sessão inválida em ambientes não HTTPS.\n\nReferências do refinamento:\n- Preferência por cookie HttpOnly, Secure, TTL 8h.",
+      "priority": 2,
+      "remaining_work": 4,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "backend",
+        "session",
+        "cookie"
+      ]
+    },
+    {
+      "parent_id": 4,
+      "state": "To Do",
+      "title": "Implementar logout removendo cookie de sessão",
+      "description": "Implementar mecanismo de logout que remove o cookie de sessão e redireciona o usuário para a página inicial ou login.\n\nContexto: Afeta o frontend e o backend, finalizando a sessão.\n\nObjetivo: Encerrar a sessão do usuário e limpar cookies.\n\nEscopo:\n- Criar endpoint /auth/logout.\n- Remover cookie de sessão.\n- Redirecionar para página de login ou inicial.\n\nFora do escopo:\n- Logout em múltiplas tabs simultaneamente (não obrigatório aqui).\n\nPassos sugeridos:\n- Endpoint /auth/logout que limpa cookies.\n- Implementar ação no frontend para chamar logout.\n- Testar sessão expirada após logout.\n\nExemplo(s):\n- Requisição a /auth/logout limpa cookie e redireciona.\n\nCritérios de pronto:\n- Cookie de sessão removido.\n- Usuário redirecionado após logout.\n- Sessão não persistida.\n\nTestes:\n- Logout limpa cookies e encerra sessão.\n- Requisitar rota protegida após logout causa redirecionamento a login.\n\nDependências/Riscos:\n- Segurança ao remover cookies.\n- Risco de sessão persistente se cookies não forem removidos.\n\nReferências do refinamento:\n- Logout remove cookie de sessão, finaliza sessão.",
+      "priority": 2,
+      "remaining_work": 2,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "backend",
+        "frontend",
+        "logout"
+      ]
+    },
+    {
+      "parent_id": 4,
+      "state": "To Do",
+      "title": "Configurar rate limiting para endpoints /auth/*",
+      "description": "Aplicar limite de 20 requisições por minuto por IP para os endpoints /auth/* usando middleware apropriado.\n\nContexto: Protege contra tentativas de ataque de força bruta.\n\nObjetivo: Limitar o número de requisições para evitar abusos.\n\nEscopo:\n- Implementar middleware de rate limit em /auth.\n- Configurar limite 20 req/min.\n- Testar limite com várias requisições.\n\nFora do escopo:\n- Rate limit por usuário autenticado (não obrigatório aqui).\n\nPassos sugeridos:\n- Escolher biblioteca de rate limit.\n- Aplicar middleware nos endpoints /auth.\n- Testar sob carga simulada.\n\nExemplo(s):\n- Requisições acima de 20 por minuto resultam em 429.\n\nCritérios de pronto:\n- Middleware aplicado.\n- Limite respeitado.\n- Resposta 429 enviada após limite.\n\nTestes:\n- Enviar 20 requisições rápidas; a 21ª deve falhar.\n- Verificar headers de rate limit.\n\nDependências/Riscos:\n- Biblioteca de rate limit confiável.\n- Risco de bloqueio clássico de bots.\n\nReferências do refinamento:\n- Rate limit 20 req/min por IP na rota /auth.",
+      "priority": 2,
+      "remaining_work": 2,
+      "assigned_to": null,
+      "iteration": "Lab\\Sprint 1",
+      "activity": null,
+      "area_path": "Lab",
+      "tags": [
+        "backend",
+        "security",
+        "rate-limit"
+      ]
+    }
+  ],
+  "assumptions": [
+    "Existem variáveis de ambiente para configurações de OAuth e sessão.",
+    "O App Registration no Azure AD está configurado e acessível.",
+    "O frontend usará uma abordagem padrão para lidar com redirecionamentos e sessões.",
+    "Infraestrutura suporta cookies Secure e SameSite adequados."
+  ],
+  "open_questions": [
+    "Quais URLs finais de staging e produção devem ser configuradas nos redirect URIs?",
+    "Vamos usar apenas client_secret ou também certificados no App Registration?",
+    "Qual mecanismo de armazenamento de sessões será utilizado no backend (memória, Redis, outro)?",
+    "Precisamos suportar multi-tab ou apenas sessões únicas por navegador?",
+    "Qual biblioteca OIDC/JWT será adotada ou se usaremos implementação própria?"
+  ],
+  "sanitization": {
+    "notes": []
+  }
+}

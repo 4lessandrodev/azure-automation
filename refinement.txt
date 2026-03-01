@@ -1,0 +1,91 @@
+REFINAMENTO TÉCNICO — PBI #4 — [Login] Implementar autenticação com Azure AD
+Data: 2026-03-01
+Participantes: PO, Tech Lead, Dev Backend, Dev Frontend, QA
+Objetivo do PBI:
+- Permitir login seguro via Azure AD (Entra ID) usando OIDC.
+- Garantir sessão estável, logs sem dados sensíveis e proteção contra abuso.
+
+Contexto do produto:
+- Aplicação web (Next.js) consumindo uma API (Node/Express).
+- Vamos proteger rotas da UI e endpoints da API.
+- Usuários são internos (corporativo), autenticação deve seguir políticas do tenant.
+
+Decisões tomadas (importante):
+1. Protocolo: OIDC Authorization Code Flow.
+2. Frontend:
+   - Botão “Entrar com Microsoft”.
+   - Ao tentar acessar rota protegida sem sessão, redirecionar para login.
+   - Após login, voltar para a rota original (returnUrl).
+3. Backend:
+   - Endpoint /auth/login: inicia redirect para o Azure AD.
+   - Endpoint /auth/callback: recebe `code`, valida `state` e `nonce`, troca por tokens.
+   - Validar `issuer`, `audience`, `exp`, `iat` nas claims.
+4. Sessão:
+   - Preferência por cookie HttpOnly e Secure (quando em HTTPS).
+   - Não usar localStorage para tokens.
+   - TTL inicial: 8 horas (ajustável).
+   - Se token expirar: retornar 401 e UI redireciona para login exibindo “Sessão expirada”.
+5. Segurança:
+   - Rate limit para endpoints /auth/*: 20 req/min por IP (valor inicial; pode ajustar).
+   - Não logar tokens, secrets, authorization code ou payload bruto.
+   - Mensagens de erro neutras (não revelar detalhes internos do Azure AD).
+6. Observabilidade:
+   - Correlation ID por request (ex.: x-correlation-id).
+   - Logs estruturados: evento “auth_success”, “auth_fail”, “auth_rate_limited”.
+   - Sem PII. Pode registrar “role/tenant/flow” se não identificar pessoa.
+7. Ambientes:
+   - Dev: localhost (com redirect URI específico).
+   - Staging: domínio de homologação.
+   - Prod: domínio final.
+   - Cada ambiente precisa de redirect URI configurado no App Registration.
+
+Requisitos funcionais (comportamento esperado):
+- Usuário clica “Entrar com Microsoft” → abre login Microsoft → retorna autenticado.
+- Usuário tenta acessar /dashboard sem login → é redirecionado → após login volta para /dashboard.
+- Logout encerra sessão e remove cookie; qualquer rota protegida volta a exigir login.
+- Ao expirar sessão, a UI detecta 401, mostra aviso e redireciona para login.
+
+Não-funcionais (critérios de qualidade):
+- Sem segredos no repositório.
+- Config por variáveis de ambiente:
+  - AZURE_TENANT_ID
+  - AZURE_CLIENT_ID
+  - AZURE_CLIENT_SECRET (ou certificado, se evoluir)
+  - AZURE_REDIRECT_URI
+  - SESSION_TTL_HOURS
+- Documentação mínima no README com troubleshooting:
+  - AADSTS50011 (redirect URI mismatch)
+  - invalid_client / secret errado
+  - invalid_state / missing nonce
+
+Escopo (o que entra agora):
+- Implementar o fluxo completo de login/callback com validações básicas.
+- Implementar sessão via cookie HttpOnly.
+- Implementar rate limit em /auth/*.
+- Implementar logout.
+- Implementar tratamento consistente de 401 no frontend.
+- Documentar variáveis e passos para rodar local.
+
+Fora do escopo (explicitamente fora):
+- SSO avançado com múltiplos tenants.
+- MFA customizado (isso é responsabilidade do Azure AD).
+- Provisionamento de usuário (criação de perfil no banco) além de mapear claims básicas.
+- Gestão de permissões RBAC (isso é outro PBI).
+
+Dependências:
+- Acesso ao tenant Azure AD para criar App Registration.
+- Definir domínios/URLs finais de staging/prod para redirect URI.
+- Definir política de cookies (Secure/SameSite) alinhada com o domínio.
+
+Riscos e pontos de atenção:
+- Redirect URIs errados causam bloqueio total do login.
+- Cookies SameSite/Secure podem quebrar em ambientes sem HTTPS.
+- Rate limit agressivo pode bloquear usuários legítimos em rede corporativa (NAT).
+- Logs podem vazar dados se alguém logar request/headers sem sanitização.
+
+Perguntas em aberto (para não inventar):
+- Quais URLs finais de staging e produção?
+- Vamos usar secret ou certificado no App Registration?
+- Qual mecanismo de armazenamento de sessão do backend (memória, redis, etc.)?
+- Precisamos suportar multi-tab / refresh sem quebrar sessão?
+- Qual biblioteca OIDC/JWT será adotada (ou implementação própria)?
