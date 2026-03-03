@@ -210,3 +210,9 @@ Para estimar custo/hora, usei **160h/mês** (40h/semana).
 
 A proposta é forte porque ataca um desperdício recorrente com impacto mensurável: **tempo de 4 pessoas em tarefa operacional repetitiva**. Mesmo numa estimativa conservadora, o ganho anual direto fica em torno de **~R$ 19,5 mil/ano** apenas em tempo de reunião (sem contar ganhos indiretos).
 O risco principal não é técnico; é **governança + qualidade do refinamento + segurança**. Com validação, revisão curta e piloto, é uma aposta racional.
+
+## Apresentação da Solução
+
+Clique na imagem abaixo para reproduzir o vídeo
+
+[![Apresentação em vídeo da solução — clique para reproduzir](https://learn.microsoft.com/pt-br/azure/devops/pipelines/get-started/media/pipelines-overview.png?view=azure-devops)](https://youtu.be/4HW_t4cWJSs)
