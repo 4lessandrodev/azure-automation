@@ -360,6 +360,27 @@ MIT
 
 ## Diagramas
 
+### Diagrama Macro
+
+```mermaid
+
+flowchart TD
+  A[Refinamento Técnico] --> B[Requerimentos.txt]
+
+  B --> C[CLI: remover dados sensíveis]
+  C --> D[CLI: envia dados para Agente criar tasks]
+
+  D --> E[Agente: retorna Pontos em aberto]
+  D --> F[Agente: retorna Tasks em JSON]
+
+  E --> G[CLI: valida retorno]
+  F --> G[CLI: valida retorno]
+
+  G --> H[CLI: cria arquivo tasks.json]
+  H --> I[CLI: cria tasks no Azure]
+
+```
+
 ### Diagrama de componentes
 
 ```mermaid
