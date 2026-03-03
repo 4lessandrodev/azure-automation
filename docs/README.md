@@ -12,6 +12,7 @@ Documentação das CLIs:
 - [Formatos JSON](formats/pbi_json.md) | [task_json](formats/task_json.md)
 - [Segurança e Privacidade](security-privacy.md)
 - [Troubleshooting](troubleshooting.md)
+- [Negócio](business.md)
 - [FAQ](faq.md)
 
 ## Princípios
